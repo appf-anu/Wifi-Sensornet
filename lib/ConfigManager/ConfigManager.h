@@ -41,6 +41,7 @@ int loadConfig(Config *cfg){
     strcpy(cfg->influxdb_server, json["influxdb_server"]);
     strcpy(cfg->influxdb_port, json["influxdb_port"]);
     strcpy(cfg->influxdb_db, json["influxdb_db"]);
+    strcpy(cfg->influxdb_user, json["influxdb_user"]);
     strcpy(cfg->influxdb_password, json["influxdb_password"]);
     strcpy(cfg->interval, json["interval"]);
     strcpy(cfg->location, json["location"]);

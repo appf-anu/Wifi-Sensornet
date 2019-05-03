@@ -10,6 +10,7 @@ struct DataPoint
 
 
 int writeDataPoint(DataPoint *d){
+    Serial.printf("Writing data point %lu %s %.2f", d->time, d->name, d->value);
     File f = SPIFFS.open("/data.dat", "a+");
     f.seek(f.size(), SeekSet);
     f.write((uint8_t *)d, sizeof(*d));
