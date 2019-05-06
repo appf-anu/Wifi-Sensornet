@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <ESP8266httpUpdate.h>
-
+#include <ESP8266WiFi.h>
 
 const char *fwUrl = "http://xn--2xa.ink/files/firmware.bin";
 

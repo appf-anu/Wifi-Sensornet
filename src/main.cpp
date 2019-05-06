@@ -1,27 +1,27 @@
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
 #include <Arduino.h>
-#include <ArduinoOTA.h>
-#include <SPI.h>
-#include <ConfigManager.h>
-
-#include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
-#include <ESP8266HTTPClient.h>
-//needed for library
-#include <DNSServer.h>
-#include <ESP8266WebServer.h>
-#include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager
-#include <WiFiUdp.h>
 #include <Ticker.h>
-#include <ArduinoJson.h>          //https://github.com/bblanchon/ArduinoJson
-#include <NTPClient.h>
-#include <I2CSoilMoistureSensor.h>
-#include <EnvironmentCalculations.h>
-#include <BME280I2C.h>
+#include <SPI.h>
 #include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <DHT.h>
-#include <ESP8266mDNS.h>
+#include <ConfigManager.h>
+#include <ESP8266WiFi.h>
 #include <fwUpdater.h>
+
+#include <DNSServer.h>                //https://github.com/tzapu/WiFiManager
+#include <ESP8266WebServer.h>         //https://github.com/tzapu/WiFiManager
+#include <WiFiManager.h>              //https://github.com/tzapu/WiFiManager
+
+#include <NTPClient.h>                //https://github.com/arduino-libraries/NTPClient
+#include <WiFiUdp.h>                  //https://github.com/arduino-libraries/NTPClient
+
+#include <BME280I2C.h>                //https://github.com/finitespace/BME280
+#include <EnvironmentCalculations.h>  //https://github.com/finitespace/BME280
+
+#include <I2CSoilMoistureSensor.h>    //https://github.com/Apollon77/I2CSoilMoistureSensor https://www.tindie.com/products/miceuz/i2c-soil-moisture-sensor/
+
+#include <DHT.h>                      //https://github.com/adafruit/DHT-sensor-library
+#include <Adafruit_Sensor.h>          //https://github.com/adafruit/DHT-sensor-library
+
 
 // DEFINES
 #define DEBUG false
@@ -32,7 +32,6 @@
 #define SCL D1
 
 #define ALTITUDECONSTANT 577.0f
-
 
 ADC_MODE(ADC_VCC);
 I2CSoilMoistureSensor chirpSensor;
@@ -283,9 +282,10 @@ void readBme280(int address){
       return;
     }
     tries++;
-    delay(300);
+    delay(250);
   }
 
+  delay(250);
   float temp = 0;
   float hum  = 0;
   float pres = 0;
@@ -294,7 +294,11 @@ void readBme280(int address){
   EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
   EnvironmentCalculations::AltitudeUnit envAltUnit  =  EnvironmentCalculations::AltitudeUnit_Meters;
   if (bme.chipModel() ==  BME280::ChipModel_BME280){
+    // whatever is going on here it gives weird values.
+    bme.read(pres, temp, hum, tempUnit, presUnit);
+    delay(100);
     t = timeClient.getEpochTime();
+    
     bme.read(pres, temp, hum, tempUnit, presUnit);
     
     outputPoint("airPressure", pres, t);
