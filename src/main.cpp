@@ -1,91 +1,119 @@
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
 #include <Arduino.h>
+#include <ArduinoOTA.h>
 #include <SPI.h>
 #include <ConfigManager.h>
-#include <DataManager.h>
+
 #include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
 #include <ESP8266HTTPClient.h>
 //needed for library
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager
-
-#include <ArduinoJson.h>          //https://github.com/bblanchon/ArduinoJson
 #include <WiFiUdp.h>
+#include <Ticker.h>
+#include <ArduinoJson.h>          //https://github.com/bblanchon/ArduinoJson
 #include <NTPClient.h>
-
 #include <I2CSoilMoistureSensor.h>
 #include <EnvironmentCalculations.h>
 #include <BME280I2C.h>
 #include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <ESP8266mDNS.h>
+#include <fwUpdater.h>
+
+// DEFINES
+#define DEBUG false
+#define UPDATE_HOURS 2
+
+#define DHTPIN D5
+#define SDA D2
+#define SCL D1
 
 #define ALTITUDECONSTANT 577.0f
 
+
 ADC_MODE(ADC_VCC);
-
 I2CSoilMoistureSensor chirpSensor;
+DHT dht(DHTPIN, DHT22);
 
-BME280I2C::Settings settings(
-   BME280::OSR_X1,
-   BME280::OSR_X1,
-   BME280::OSR_X1,
-   BME280::Mode_Forced,
-   BME280::StandbyTime_1000ms,
-   BME280::Filter_16,
-   BME280::SpiEnable_False,
-   BME280I2C::I2CAddr_0x76
-);
-
-BME280I2C bme(settings);
-WiFiUDP ntpUDP;
 
 // You can specify the time server pool and the offset (in seconds, can be
 // changed later with setTimeOffset() ). Additionaly you can specify the
 // update interval (in milliseconds, can be changed using setUpdateInterval() ).
+WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "au.pool.ntp.org", 0);
+struct Config cfg;
 
+// this include MUST BE AFTER TIMECLIENT AND CFG!!!
+#include <DataManager.h>
+
+// some global(ish) variables
+static uint32_t tick = 0;
 bool shouldSaveConfig = false;
+
 //callback notifying us of the need to save config
 void saveConfigCallback () {
   Serial.println("Should save config");
   shouldSaveConfig = true;
 }
 
-struct Config cfg;
 
 unsigned int sleepMinutes;
 unsigned long sleepMicros;
 unsigned int flashButtonCounter = 0;
+
+void flashLed(){
+  int state = digitalRead(LED_BUILTIN);  // get the current state of GPIO1 pin
+  digitalWrite(LED_BUILTIN, !state);     // set pin to the opposite state
+}
+ 
+Ticker ticker;
 
 void resetConfiguration(){
   flashButtonCounter++;
   
   // need to mash the flash button
   if (flashButtonCounter < 5) {
-    Serial.printf("press the flash button %d more times to reset datafile...\n", 5-flashButtonCounter);
+    Serial.printf("press the flash button %d more times to ota next interval...\n", 5-flashButtonCounter);
     return;
   }
-  SPIFFS.remove("/data.dat");
+  
+  ticker.attach(1.0/(float)flashButtonCounter, flashLed);
+  tick = (uint32_t)((UPDATE_HOURS*60)/sleepMinutes) - 1;
+  
+  // need to mash the flash button
   if (flashButtonCounter < 10) {
-    Serial.printf("press the flash button %d more times to reset config...\n", 10-flashButtonCounter);
+    Serial.printf("press the flash button %d more times to reset datafile...\n", 10-flashButtonCounter);
+    return;
+  }
+  ticker.attach(1.0/(float)flashButtonCounter, flashLed);
+  SPIFFS.remove("/data.dat");
+  if (flashButtonCounter < 15) {
+    Serial.printf("press the flash button %d more times to reset config...\n", 15-flashButtonCounter);
     return;
   }
   Serial.println("Resetting configuration....");
-  SPIFFS.remove("/config.json");
+  ticker.attach(1.0/(float)flashButtonCounter, flashLed);
+  // SPIFFS.remove("/config.json");
   
   WiFiManager wifiManager;
   // reset settings - for testing
   wifiManager.resetSettings();
+  WiFi.disconnect();
   Serial.println("Config reset, rebooting...");
   ESP.reset();
 }
 
 void setup() {
+
   Serial.println("mounting FS...");
   while (!SPIFFS.begin()) {
     Serial.println("failed to mount FS");
     delay(100);
   }
+  pinMode(LED_BUILTIN, OUTPUT);
   pinMode(0, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(0), resetConfiguration, FALLING);
 
@@ -154,68 +182,27 @@ void setup() {
     saveConfig(&cfg);
   }
 
+  char hostname[32];
+  sprintf(hostname, "ESP8266-%s-%d", cfg.location, ESP.getChipId());
+  WiFi.hostname(hostname);
+
   timeClient.begin();
   Serial.println("Updating time...");
   timeClient.forceUpdate();
   Wire.setClockStretchLimit(2500);
-
   // i2c:   sda,scl
   // nodemcu D6,D7
   // esp8266 12,13
-  Wire.begin(12,13);
+  // D2,D1
+  Wire.begin(4,5);
   sleepMinutes = atoi(cfg.interval);
   sleepMicros  = sleepMinutes*6e+7;
+#if !DEBUG
+  checkForUpdates();
+#else
+  Serial.printf("Sketch md5: %s\n", ESP.getSketchMD5().c_str());
+#endif
 
-}
-
-int postDataPointToInfluxDB(DataPoint *d){
-  char url[128];
-  sprintf(url, "http://%s:%s/write?db=%s&precision=s&u=%s&p=%s", 
-    cfg.influxdb_server, cfg.influxdb_port,
-    cfg.influxdb_db, cfg.influxdb_user, cfg.influxdb_password);
-  char metric[128];
-  int chipId = ESP.getChipId();
-
-  sprintf(metric, "solarnode,chipid=%d,location=%s %s=%.5f %lu",
-    chipId, cfg.location, // change these out later to come from the config.
-    d->name, d->value,
-    d->time);
-
-  // http request
-  WiFiClient wifi;
-  HTTPClient http;
-  http.setTimeout(10000);
-  http.begin(wifi, url);
-  http.addHeader("Content-Type", "text/plain");
-  int httpCode = http.POST(metric);
-  http.end();
-  if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK))
-    Serial.printf("Executed POST to %s returned %d\n", url, httpCode);
-  return httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK;
-}
-
-void outputPoint(const char name[32], float value, unsigned long int t){
-  DataPoint d;
-  memset(&d, 0, sizeof(d));
-  d.time = t;
-  strcpy(d.name, name);
-  d.value = value;
-  if (WiFi.status() != WL_CONNECTED) {
-    writeDataPoint(&d);
-    return;
-  }
-  size_t tries;
-  for (tries = 0; tries < 3; tries++ ){
-    if (postDataPointToInfluxDB(&d)){
-      delay(100); // sleep a little bit so as not to hammer the server.
-      return;
-    } 
-  }
-  writeDataPoint(&d);
-}
-
-void outputPoint(const char name[32], float value){
-  outputPoint(name, value, timeClient.getEpochTime());
 }
 
 void outputEnvironmentVars(unsigned long int t, float temp, float hum, float pres){
@@ -225,7 +212,7 @@ void outputEnvironmentVars(unsigned long int t, float temp, float hum, float pre
     EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit),
     t);
 
-  outputPoint("airHeatIndex", 
+  outputPoint(INT, "airHeatIndex", 
     EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit), 
     t);
   outputPoint("airDewPoint", 
@@ -257,7 +244,7 @@ void outputEnvironmentVars(unsigned long int t, float temp, float hum){
   outputPoint("airAbsoluteHumidity", 
     EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit),
     t);
-  outputPoint("airHeatIndex", 
+  outputPoint(INT, "airHeatIndex", 
     EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit), 
     t);
   outputPoint("airDewPoint", 
@@ -275,9 +262,21 @@ void outputEnvironmentVars(unsigned long int t, float temp, float hum){
   outputPoint("airVapourPressureDeficit", vapourPressureDeficit, t);
 }
 
-void readBme280(){
+void readBme280(int address){
   unsigned long int t;
   unsigned int tries = 0;
+  BME280I2C::Settings settings(
+   BME280::OSR_X1,
+   BME280::OSR_X1,
+   BME280::OSR_X1,
+   BME280::Mode_Forced,
+   BME280::StandbyTime_1000ms,
+   BME280::Filter_16,
+   BME280::SpiEnable_False,
+   (address == 0x76 ? BME280I2C::I2CAddr_0x76:BME280I2C::I2CAddr_0x77)
+  );
+  BME280I2C bme(settings);
+  
   while (!bme.begin()){
     if (tries >= 10) {
       Serial.println("Tried too many times to communicate with bme280");
@@ -285,7 +284,6 @@ void readBme280(){
     }
     tries++;
     delay(300);
-    
   }
 
   float temp = 0;
@@ -296,30 +294,43 @@ void readBme280(){
   EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
   EnvironmentCalculations::AltitudeUnit envAltUnit  =  EnvironmentCalculations::AltitudeUnit_Meters;
   if (bme.chipModel() ==  BME280::ChipModel_BME280){
-    Serial.println("Found BME280");
     t = timeClient.getEpochTime();
     bme.read(pres, temp, hum, tempUnit, presUnit);
     
     outputPoint("airPressure", pres, t);
     outputPoint("airTemperature", temp, t);
     outputPoint("airRelativeHumidity", hum, t);
-    outputPoint("airPressureAtSeaLevel", 
+    outputPoint("airEquivalentSeaLevelPressure", 
       EnvironmentCalculations::EquivalentSeaLevelPressure(ALTITUDECONSTANT, temp, pres, envAltUnit, envTempUnit),
       t);
     outputEnvironmentVars(t, temp, hum, pres);
   }
   if (bme.chipModel() == BME280::ChipModel_BMP280){
-    Serial.println("Found BME280");
     t = timeClient.getEpochTime();
     bme.read(pres, temp, hum, tempUnit, presUnit);
     
     outputPoint("airPressure", pres, t);
     outputPoint("airTemperature", temp, t);
-    outputPoint("airPressureAtSeaLevel", 
+    outputPoint("airEquivalentSeaLevelPressure", 
       EnvironmentCalculations::EquivalentSeaLevelPressure(ALTITUDECONSTANT, temp, pres, envAltUnit, envTempUnit),
       t);
   }
+}
+
+void readDHT(){
+  unsigned long int t = timeClient.getEpochTime();
+  dht.begin();
   
+  float hum = dht.readHumidity();
+  float temp = dht.readTemperature();
+  
+  if (isnan(temp) || isnan(hum)){
+    Serial.println("No DHT");
+    return;
+  }
+  outputPoint("airTemperature", temp, t);
+  outputPoint("airRelativeHumidity", hum, t);
+  outputEnvironmentVars(t, temp, hum);
 }
 
 void readChirp(){
@@ -327,43 +338,59 @@ void readChirp(){
   unsigned long int t = timeClient.getEpochTime();
   chirpSensor.begin(true); // wait needs 1s for startup
   while (chirpSensor.isBusy()) delay(50);
-  float soilCapacitance = (float)chirpSensor.getCapacitance();
-  outputPoint("soilCapacitance", soilCapacitance, t);
-
+  unsigned int soilCapacitance = chirpSensor.getCapacitance();
+  outputPoint(INT, "soilCapacitance", soilCapacitance, t);
   float soilTemperature = chirpSensor.getTemperature()/(float)10; // temperature is in multiple of 10
   outputPoint("soilTemperature", soilTemperature, t);
   chirpSensor.sleep();
 }
 
-int cntr = 0;
+void readSys(){
+  outputPoint(INT, "espVcc", ESP.getVcc());
+  outputPoint(INT, "espFreeHeap", ESP.getFreeHeap());
+  outputPoint(INT, "espHeapFragmentation", ESP.getHeapFragmentation());
+  float until = (int)(UPDATE_HOURS*60)-(tick-1) % (int)(UPDATE_HOURS*60);
+  outputPoint(INT, "secondsUntilNextUpdate", (int)until*60);
+}
+
 void loop() {
+  // run update on second loop (tick+1)
+  if ((tick+1) % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
+    checkForUpdates();
+  }else{
+    Serial.printf("Not time for update %d/%d\n", tick, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
+  }
+  tick ++;
   
   unsigned long startMicros = micros();
   for (int address = 1; address < 127; address++){
     Wire.beginTransmission(address);
     if (Wire.endTransmission() == 0){
+      Serial.printf("Found I2C device at address 0x%02X\n", address);
       if (address == 0x20){
         readChirp();
       }
-      if (address == 0x76){
-        readBme280();
+      if (address == 0x76 || address == 0x77) {
+        readBme280(address);
       }
-      Serial.printf("Found I2C device at address 0x%02X\n", address);
     }
   }
-
-  outputPoint("espvcc", (float)ESP.getVcc());
-
+  
+  readDHT();
+  
+  readSys();
+  
   if (SPIFFS.exists("/data.dat")){
     File f = SPIFFS.open("/data.dat", "r");
-    outputPoint("dataFileSize", float(f.size()));
+    
+    outputPoint(INT, "dataFileSize", f.size());
     f.close();
     DataPoint dr;
     memset(&dr, 0, sizeof(dr));
     size_t readPos = 0;
     bool failedWrite = false;
     while ((readPos = readDataPoint(&dr, readPos)) != 0) {
-        Serial.printf("%ld %s %.01f\n", dr.time, dr.name, dr.value);
+        Serial.printf("%ld %s %.01f\t[]->\t", dr.time, dr.name, dr.value);
         for (size_t tries = 0; tries < 3; tries++){
           if(postDataPointToInfluxDB(&dr)) break;
           failedWrite = true;
@@ -373,14 +400,12 @@ void loop() {
     }
     if(!failedWrite) SPIFFS.remove("/data.dat");
   }
-
   unsigned long delta = micros() - startMicros;
   #ifdef ESP_DEEPSLEEP
     ESP.deepSleep(sleepMicros-delta);
+  #else
+    unsigned long sleepTotal = (sleepMicros-delta)/1000;
+    Serial.printf("Delay for %.3fs\n", sleepTotal/(float)1000);
+    delay(sleepTotal);  
   #endif
-  unsigned long sleepTotal = (sleepMicros-delta)/1000;
-  Serial.printf("Delay for %.3fs\n", sleepTotal/(float)1000);
-  delay(sleepTotal);
-  
 }
-
