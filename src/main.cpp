@@ -7,21 +7,12 @@
 #include <ESP8266WiFi.h>
 #include <fwUpdater.h>
 
-#include <DNSServer.h>                //https://github.com/tzapu/WiFiManager
-#include <ESP8266WebServer.h>         //https://github.com/tzapu/WiFiManager
-#include <WiFiManager.h>              //https://github.com/tzapu/WiFiManager
+#include <DNSServer.h>        //https://github.com/tzapu/WiFiManager
+#include <ESP8266WebServer.h> //https://github.com/tzapu/WiFiManager
+#include <WiFiManager.h>      //https://github.com/tzapu/WiFiManager
 
-#include <NTPClient.h>                //https://github.com/arduino-libraries/NTPClient
-#include <WiFiUdp.h>                  //https://github.com/arduino-libraries/NTPClient
-
-#include <BME280I2C.h>                //https://github.com/finitespace/BME280
-#include <EnvironmentCalculations.h>  //https://github.com/finitespace/BME280
-
-#include <I2CSoilMoistureSensor.h>    //https://github.com/Apollon77/I2CSoilMoistureSensor https://www.tindie.com/products/miceuz/i2c-soil-moisture-sensor/
-
-#include <DHT.h>                      //https://github.com/adafruit/DHT-sensor-library
-#include <Adafruit_Sensor.h>          //https://github.com/adafruit/DHT-sensor-library
-
+#include <NTPClient.h>        //https://github.com/arduino-libraries/NTPClient
+#include <WiFiUdp.h>          //https://github.com/arduino-libraries/NTPClient
 
 // DEFINES
 #define DEBUG false
@@ -34,8 +25,6 @@
 #define ALTITUDECONSTANT 577.0f
 
 ADC_MODE(ADC_VCC);
-I2CSoilMoistureSensor chirpSensor;
-DHT dht(DHTPIN, DHT22);
 
 
 // You can specify the time server pool and the offset (in seconds, can be
@@ -44,24 +33,26 @@ DHT dht(DHTPIN, DHT22);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "au.pool.ntp.org", 0);
 struct Config cfg;
-
-// this include MUST BE AFTER TIMECLIENT AND CFG!!!
-#include <DataManager.h>
-
-// some global(ish) variables
 static uint32_t tick = 0;
 bool shouldSaveConfig = false;
+unsigned int sleepMinutes;
+unsigned long sleepMicros;
+unsigned int flashButtonCounter = 0;
+
+// this includes include MUST BE AFTER TIMECLIENT AND CFG!!!
+#include <DataManager.h>
+// these includes must be after DataManager
+#include <ReadChirp.h>
+#include <ReadBME.h>
+#include <ReadDHT.h>
+#include <ReadBH1750.h>
+#include <ReadSys.h>
 
 //callback notifying us of the need to save config
 void saveConfigCallback () {
   Serial.println("Should save config");
   shouldSaveConfig = true;
 }
-
-
-unsigned int sleepMinutes;
-unsigned long sleepMicros;
-unsigned int flashButtonCounter = 0;
 
 void flashLed(){
   int state = digitalRead(LED_BUILTIN);  // get the current state of GPIO1 pin
@@ -70,7 +61,7 @@ void flashLed(){
  
 Ticker ticker;
 
-void resetConfiguration(){
+void reset(){
   flashButtonCounter++;
   
   // need to mash the flash button
@@ -114,7 +105,7 @@ void setup() {
   }
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(0, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(0), resetConfiguration, FALLING);
+  attachInterrupt(digitalPinToInterrupt(0), reset, FALLING);
 
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -162,7 +153,7 @@ void setup() {
     ESP.reset();
     delay(5000);
   }
-
+  WiFi.setAutoReconnect(true);
   //if you get here you have connected to the WiFi
   Serial.println("connected...yeey :)");
 
@@ -204,160 +195,8 @@ void setup() {
 
 }
 
-void outputEnvironmentVars(unsigned long int t, float temp, float hum, float pres){
-  EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
-  // abshum in grams/m³
-  outputPoint("airAbsoluteHumidity", 
-    EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit),
-    t);
-
-  outputPoint(INT, "airHeatIndex", 
-    EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit), 
-    t);
-  outputPoint("airDewPoint", 
-    EnvironmentCalculations::DewPoint(temp, hum, envTempUnit), 
-    t);
-  // saturated vapor pressure (es)
-  float saturatedVapourPressure = 0.6108 * exp(17.27*temp/(temp+237.3));
-  outputPoint("airSaturatedVaporPressure", saturatedVapourPressure, t);
-  // actual vapor pressure (ea)
-  float actualVapourPressure = hum / 100 * saturatedVapourPressure;
-  outputPoint("airActualVaporPressure", saturatedVapourPressure, t);
-
-  // this equation returns a negative value (in kPa), which while technically correct,
-  // is invalid in this case because we are talking about a deficit.
-  double vapourPressureDeficit = (actualVapourPressure - saturatedVapourPressure) * -1;
-  outputPoint("airVapourPressureDeficit", vapourPressureDeficit, t);
-
-  // mixing ratio
-  float mixingRatio = 621.97 * actualVapourPressure / ((pres/10) - actualVapourPressure);
-  outputPoint("airMixingRatio", mixingRatio, t);
-  // saturated mixing ratio
-  float saturatedMixingRatio = 621.97 * saturatedVapourPressure / ((pres/10) - saturatedVapourPressure);
-  outputPoint("airSaturatedMixingRatio", saturatedMixingRatio, t);
-}
-
-void outputEnvironmentVars(unsigned long int t, float temp, float hum){
-  EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
-  // abshum in grams/m³
-  outputPoint("airAbsoluteHumidity", 
-    EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit),
-    t);
-  outputPoint(INT, "airHeatIndex", 
-    EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit), 
-    t);
-  outputPoint("airDewPoint", 
-    EnvironmentCalculations::DewPoint(temp, hum, envTempUnit), 
-    t);
-  // saturated vapor pressure (es)
-  float saturatedVapourPressure = 0.6108 * exp(17.27*temp/(temp+237.3));
-  outputPoint("airSaturatedVaporPressure", saturatedVapourPressure, t);
-  // actual vapor pressure (ea)
-  float actualVapourPressure = hum / 100 * saturatedVapourPressure;
-  outputPoint("airActualVaporPressure", saturatedVapourPressure, t);
-  // this equation returns a negative value (in kPa), which while technically correct,
-  // is invalid in this case because we are talking about a deficit.
-  double vapourPressureDeficit = (actualVapourPressure - saturatedVapourPressure) * -1;
-  outputPoint("airVapourPressureDeficit", vapourPressureDeficit, t);
-}
-
-void readBme280(int address){
-  unsigned long int t;
-  unsigned int tries = 0;
-  BME280I2C::Settings settings(
-   BME280::OSR_X1,
-   BME280::OSR_X1,
-   BME280::OSR_X1,
-   BME280::Mode_Forced,
-   BME280::StandbyTime_1000ms,
-   BME280::Filter_16,
-   BME280::SpiEnable_False,
-   (address == 0x76 ? BME280I2C::I2CAddr_0x76:BME280I2C::I2CAddr_0x77)
-  );
-  BME280I2C bme(settings);
-  
-  while (!bme.begin()){
-    if (tries >= 10) {
-      Serial.println("Tried too many times to communicate with bme280");
-      return;
-    }
-    tries++;
-    delay(250);
-  }
-
-  delay(250);
-  float temp = 0;
-  float hum  = 0;
-  float pres = 0;
-  BME280::TempUnit tempUnit = BME280::TempUnit_Celsius;
-  BME280::PresUnit presUnit = BME280::PresUnit_hPa;
-  EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
-  EnvironmentCalculations::AltitudeUnit envAltUnit  =  EnvironmentCalculations::AltitudeUnit_Meters;
-  if (bme.chipModel() ==  BME280::ChipModel_BME280){
-    // whatever is going on here it gives weird values.
-    bme.read(pres, temp, hum, tempUnit, presUnit);
-    delay(100);
-    t = timeClient.getEpochTime();
-    
-    bme.read(pres, temp, hum, tempUnit, presUnit);
-    
-    outputPoint("airPressure", pres, t);
-    outputPoint("airTemperature", temp, t);
-    outputPoint("airRelativeHumidity", hum, t);
-    outputPoint("airEquivalentSeaLevelPressure", 
-      EnvironmentCalculations::EquivalentSeaLevelPressure(ALTITUDECONSTANT, temp, pres, envAltUnit, envTempUnit),
-      t);
-    outputEnvironmentVars(t, temp, hum, pres);
-  }
-  if (bme.chipModel() == BME280::ChipModel_BMP280){
-    t = timeClient.getEpochTime();
-    bme.read(pres, temp, hum, tempUnit, presUnit);
-    
-    outputPoint("airPressure", pres, t);
-    outputPoint("airTemperature", temp, t);
-    outputPoint("airEquivalentSeaLevelPressure", 
-      EnvironmentCalculations::EquivalentSeaLevelPressure(ALTITUDECONSTANT, temp, pres, envAltUnit, envTempUnit),
-      t);
-  }
-}
-
-void readDHT(){
-  unsigned long int t = timeClient.getEpochTime();
-  dht.begin();
-  
-  float hum = dht.readHumidity();
-  float temp = dht.readTemperature();
-  
-  if (isnan(temp) || isnan(hum)){
-    Serial.println("No DHT");
-    return;
-  }
-  outputPoint("airTemperature", temp, t);
-  outputPoint("airRelativeHumidity", hum, t);
-  outputEnvironmentVars(t, temp, hum);
-}
-
-void readChirp(){
-  // chirp soil moisture sensor is address 0x20
-  unsigned long int t = timeClient.getEpochTime();
-  chirpSensor.begin(true); // wait needs 1s for startup
-  while (chirpSensor.isBusy()) delay(50);
-  unsigned int soilCapacitance = chirpSensor.getCapacitance();
-  outputPoint(INT, "soilCapacitance", soilCapacitance, t);
-  float soilTemperature = chirpSensor.getTemperature()/(float)10; // temperature is in multiple of 10
-  outputPoint("soilTemperature", soilTemperature, t);
-  chirpSensor.sleep();
-}
-
-void readSys(){
-  outputPoint(INT, "espVcc", ESP.getVcc());
-  outputPoint(INT, "espFreeHeap", ESP.getFreeHeap());
-  outputPoint(INT, "espHeapFragmentation", ESP.getHeapFragmentation());
-  float until = (int)(UPDATE_HOURS*60)-(tick-1) % (int)(UPDATE_HOURS*60);
-  outputPoint(INT, "secondsUntilNextUpdate", (int)until*60);
-}
-
 void loop() {
+  
   // run update on second loop (tick+1)
   if ((tick+1) % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
     checkForUpdates();
@@ -367,7 +206,7 @@ void loop() {
   tick ++;
   
   unsigned long startMicros = micros();
-  for (int address = 1; address < 127; address++){
+  for (byte address = 1; address < 127; address++){
     Wire.beginTransmission(address);
     if (Wire.endTransmission() == 0){
       Serial.printf("Found I2C device at address 0x%02X\n", address);
@@ -377,6 +216,9 @@ void loop() {
       if (address == 0x76 || address == 0x77) {
         readBme280(address);
       }
+      if (address == 0x23 || address == 0x5C){
+        readBH1750(address);
+      }
     }
   }
   
@@ -385,18 +227,22 @@ void loop() {
   readSys();
   
   if (SPIFFS.exists("/data.dat")){
-    File f = SPIFFS.open("/data.dat", "r");
-    
-    outputPoint(INT, "dataFileSize", f.size());
-    f.close();
-    DataPoint dr;
-    memset(&dr, 0, sizeof(dr));
+    DataPoint d;
+    memset(&d, 0, sizeof(d));
     size_t readPos = 0;
     bool failedWrite = false;
-    while ((readPos = readDataPoint(&dr, readPos)) != 0) {
-        Serial.printf("%ld %s %.01f\t[]->\t", dr.time, dr.name, dr.value);
+    while ((readPos = readDataPoint(&d, readPos)) != 0) {
+        switch (d.type)
+        {
+          case INT:
+            Serial.printf("[]-> %lu %s %d\n", d.time, d.name, (int)d.value);
+            break;
+          case FLOAT:
+            Serial.printf("[]-> %lu %s %.2f\n", d.time, d.name, d.value);
+            break;
+        } 
         for (size_t tries = 0; tries < 3; tries++){
-          if(postDataPointToInfluxDB(&dr)) break;
+          if(postDataPointToInfluxDB(&d)) break;
           failedWrite = true;
           delay(100);
         }
@@ -408,6 +254,9 @@ void loop() {
   #ifdef ESP_DEEPSLEEP
     ESP.deepSleep(sleepMicros-delta);
   #else
+    if(delta >= sleepMicros){
+      delta = sleepMicros;
+    }
     unsigned long sleepTotal = (sleepMicros-delta)/1000;
     Serial.printf("Delay for %.3fs\n", sleepTotal/(float)1000);
     delay(sleepTotal);  
