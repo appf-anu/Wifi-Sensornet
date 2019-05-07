@@ -113,6 +113,7 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorTyp
   // http request
   WiFiClient wifi;
   HTTPClient http;
+  http.setReuse(false);
   http.setTimeout(10000);
   http.begin(wifi, url);
   http.addHeader("Content-Type", "text/plain");
@@ -181,6 +182,7 @@ int postDataPointToInfluxDB(DataPoint *d){
   // http request
   WiFiClient wifi;
   HTTPClient http;
+  http.setReuse(false);
   http.setTimeout(10000);
   http.begin(wifi, url);
   http.addHeader("Content-Type", "text/plain");
@@ -190,7 +192,6 @@ int postDataPointToInfluxDB(DataPoint *d){
   Serial.printf("posted %s: %db to server got %d\n", d->sensorType, strlen(metric), httpCode);
   if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK))
     Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
-    
   http.end();
   return httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK;
 }
