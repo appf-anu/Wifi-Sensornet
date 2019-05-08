@@ -6,7 +6,9 @@
 
 typedef enum {
     INT,
-    FLOAT
+    FLOAT,
+    DOUBLE,
+    BOOL
 } TYPE;
 
 struct DataPoint
@@ -14,7 +16,7 @@ struct DataPoint
     char name[32];
     char sensorType[8];
     unsigned long time;
-    float value;
+    double value;
     TYPE type;
 };
 
@@ -29,7 +31,13 @@ int writeDataPoint(DataPoint *d){
         Serial.printf("[]<- %lu %s %d\n", d->time, d->name, (int)d->value);
         break;
       case FLOAT:
-        Serial.printf("[]<- %lu %s %.2f\n", d->time, d->name, d->value);
+        Serial.printf("[]<- %lu %s %.2f\n", d->time, d->name, (float)d->value);
+        break;
+      case DOUBLE:
+        Serial.printf("[]<- %lu %s %.2f\n", d->time, d->name, (double)d->value);
+        break;
+      case BOOL:
+        Serial.printf("[]<- %lu %s %s\n", d->time, d->name, ((bool)d->value)?"true":"false");
         break;
     } 
     delay(20);
@@ -54,7 +62,7 @@ int readDataPoint(DataPoint *d, size_t seekNum){
     return seekNum + sizeof(*d);
 }
 
-DataPoint createDataPoint(TYPE dtype, const char name[32], const char *sensorType, float value, unsigned long int t){
+DataPoint createDataPoint(TYPE dtype, const char name[32], const char *sensorType, double value, unsigned long int t){
   DataPoint d;
   memset(&d, 0, sizeof(d));
   d.time = t;
@@ -65,7 +73,7 @@ DataPoint createDataPoint(TYPE dtype, const char name[32], const char *sensorTyp
   return d;
 }
 
-DataPoint createDataPoint(TYPE dtype, const char name[32], const char *sensorType, float value){
+DataPoint createDataPoint(TYPE dtype, const char name[32], const char *sensorType, double value){
   return createDataPoint(dtype, name, sensorType, value, timeClient.getEpochTime());
 }
 
@@ -98,14 +106,21 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorTyp
         sprintf(metric, "%s%s=%di", metric, (d+x)->name, (int)(d+x)->value);
       break;
       case FLOAT:
-        sprintf(metric, "%s%s=%.5f", metric, (d+x)->name, (float)(d+x)->value);
+        sprintf(metric, "%s%s=%.5f", metric, (d+x)->name, (double)(d+x)->value);
+        break;
+      case DOUBLE:
+        sprintf(metric, "%s%s=%.5f", metric, (d+x)->name, (double)(d+x)->value);
+        break;
+      case BOOL:
+        sprintf(metric, "%s%s=%s", metric, (d+x)->name, ((bool)(d+x)->value)?"true":"false");
+        break;
     }
     if (x != num-1) strcat(metric, ",");
   }
   sprintf(metric, "%s %lu", metric, t);
   
 
-#if DEBUG 
+#if DEBUG_POST 
   Serial.println(metric);
   return 1;
 #endif
@@ -129,6 +144,11 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorTyp
 }
 
 void bulkOutputDataPoints(DataPoint *d, size_t num, const char *sensorType, unsigned long t){
+#if DEBUG_WIFI_CONNECTION
+  Serial.println("Debugging wifi, pretending wifi isnt connected.");
+  for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
+  return;
+#endif
   if (WiFi.status() != WL_CONNECTED) {
     for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
     return;
@@ -171,10 +191,17 @@ int postDataPointToInfluxDB(DataPoint *d){
     break;
     case FLOAT:
       sprintf(metric, "%s %s=%.5f %lu", metric, d->name, (float)d->value, d->time);
+      break;
+    case DOUBLE:
+      sprintf(metric, "%s %s=%.5f %lu", metric, d->name, (double)d->value, d->time);
+      break;
+    case BOOL:
+      sprintf(metric, "%s%s=%s", metric, d->name, ((bool)d->value)?"true":"false");
+      break;
   }
   
 
-#if DEBUG
+#if DEBUG_POST
   Serial.println(metric);
   return 1;
 #endif
@@ -196,7 +223,7 @@ int postDataPointToInfluxDB(DataPoint *d){
   return httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK;
 }
 
-void outputPoint(TYPE dtype, const char name[32], const char *sensorType, float value, unsigned long int t){
+void outputPoint(TYPE dtype, const char name[32], const char *sensorType, double value, unsigned long int t){
   DataPoint d;
   memset(&d, 0, sizeof(d));
   d.time = t;
@@ -204,6 +231,11 @@ void outputPoint(TYPE dtype, const char name[32], const char *sensorType, float 
   strncpy(d.sensorType, sensorType, 8);
   strcpy(d.name, name);
   d.value = value;
+#if DEBUG_WIFI_CONNECTION
+  Serial.println("debugging wifi, sending data straight to disk");
+  writeDataPoint(&d);
+  return;
+#endif
   if (WiFi.status() != WL_CONNECTED) {
     writeDataPoint(&d);
     return;
@@ -217,23 +249,23 @@ void outputPoint(TYPE dtype, const char name[32], const char *sensorType, float 
   writeDataPoint(&d);
 }
 
-size_t createEnvironmentData(DataPoint dps[8], const char *sensorType, unsigned long int t, float temp, float hum, float pres){
+size_t createEnvironmentData(DataPoint dps[8], const char *sensorType, unsigned long int t, double temp, double hum, double pres){
   EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
   // abshum in grams/m³
 
-  float airAbsoluteHumidity = EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit);
+  double airAbsoluteHumidity = EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit);
   dps[0] = createDataPoint(FLOAT, "airAbsoluteHumidity", sensorType, airAbsoluteHumidity, t);
 
   unsigned int airHeatIndex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
 
   dps[1] = createDataPoint(INT, "airHeatIndex", sensorType, airHeatIndex, t);
-  float airDewPoint = EnvironmentCalculations::DewPoint(temp, hum, envTempUnit);
+  double airDewPoint = EnvironmentCalculations::DewPoint(temp, hum, envTempUnit);
   dps[2] = createDataPoint(FLOAT, "airDewPoint", sensorType, airDewPoint, t);
   // saturated vapor pressure (es)
-  float saturatedVapourPressure = 0.6108 * exp(17.27*temp/(temp+237.3));
+  double saturatedVapourPressure = 0.6108 * exp(17.27*temp/(temp+237.3));
   dps[3] = createDataPoint(FLOAT, "airSaturatedVaporPressure", sensorType, saturatedVapourPressure, t);
   // actual vapor pressure (ea)
-  float actualVapourPressure = hum / 100 * saturatedVapourPressure;
+  double actualVapourPressure = hum / 100 * saturatedVapourPressure;
   dps[4] = createDataPoint(FLOAT, "airActualVaporPressure", sensorType, saturatedVapourPressure, t);
 
   // this equation returns a negative value (in kPa), which while technically correct,
@@ -242,30 +274,30 @@ size_t createEnvironmentData(DataPoint dps[8], const char *sensorType, unsigned 
   dps[5] = createDataPoint(FLOAT, "airVapourPressureDeficit", sensorType, vapourPressureDeficit, t);
 
   // mixing ratio
-  float mixingRatio = 621.97 * actualVapourPressure / ((pres/10) - actualVapourPressure);
+  double mixingRatio = 621.97 * actualVapourPressure / ((pres/10) - actualVapourPressure);
   dps[6] = createDataPoint(FLOAT, "airMixingRatio", sensorType, mixingRatio, t);
   // saturated mixing ratio
-  float saturatedMixingRatio = 621.97 * saturatedVapourPressure / ((pres/10) - saturatedVapourPressure);
+  double saturatedMixingRatio = 621.97 * saturatedVapourPressure / ((pres/10) - saturatedVapourPressure);
   dps[7] = createDataPoint(FLOAT, "airSaturatedMixingRatio", sensorType, saturatedMixingRatio, t);
   return 8;
 }
 
-size_t createEnvironmentData(DataPoint dps[6], const char *sensorType, unsigned long int t, float temp, float hum){
+size_t createEnvironmentData(DataPoint dps[6], const char *sensorType, unsigned long int t, double temp, double hum){
   
   EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
   // abshum in grams/m³
-  float airAbsoluteHumidity = EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit);
+  double airAbsoluteHumidity = EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit);
   dps[0] = createDataPoint(FLOAT, "airAbsoluteHumidity", sensorType, airAbsoluteHumidity, t);
   
   unsigned int airHeatIndex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
   dps[1] = createDataPoint(INT, "airHeatIndex", sensorType, airHeatIndex, t);
-  float airDewPoint = EnvironmentCalculations::DewPoint(temp, hum, envTempUnit);
+  double airDewPoint = EnvironmentCalculations::DewPoint(temp, hum, envTempUnit);
   dps[2] = createDataPoint(FLOAT, "airDewPoint", sensorType, airDewPoint, t);
   // saturated vapor pressure (es)
-  float saturatedVapourPressure = 0.6108 * exp(17.27*temp/(temp+237.3));
+  double saturatedVapourPressure = 0.6108 * exp(17.27*temp/(temp+237.3));
   dps[3] = createDataPoint(FLOAT, "airSaturatedVaporPressure", sensorType, saturatedVapourPressure, t);
   // actual vapor pressure (ea)
-  float actualVapourPressure = hum / 100 * saturatedVapourPressure;
+  double actualVapourPressure = hum / 100 * saturatedVapourPressure;
   dps[4] = createDataPoint(FLOAT, "airActualVaporPressure", sensorType, saturatedVapourPressure, t);
   // this equation returns a negative value (in kPa), which while technically correct,
   // is invalid in this case because we are talking about a deficit.

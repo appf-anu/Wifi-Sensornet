@@ -15,7 +15,8 @@
 #include <WiFiUdp.h>          //https://github.com/arduino-libraries/NTPClient
 
 // DEFINES
-#define DEBUG false
+#define DEBUG_POST false
+#define DEBUG_WIFI_CONNECTION false
 #define UPDATE_HOURS 2
 
 #define DHTPIN D5
@@ -187,7 +188,7 @@ void setup() {
   Wire.begin(4,5);
   sleepMinutes = atoi(cfg.interval);
   sleepMicros  = sleepMinutes*6e+7;
-#if !DEBUG
+#if ((!DEBUG_POST) && (!DEBUG_WIFI_CONNECTION))
   checkForUpdates();
 #else
   Serial.printf("Sketch md5: %s\n", ESP.getSketchMD5().c_str());
@@ -195,17 +196,18 @@ void setup() {
 
 }
 
+double lastLoopTime = 0;
+bool firstLoop = true; 
 void loop() {
-  
+  unsigned long startMicros = micros();
+
   // run update on second loop (tick+1)
   if ((tick+1) % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
     checkForUpdates();
   }else{
     Serial.printf("Not time for update %d/%d\n", tick, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
   }
-  tick ++;
-  
-  unsigned long startMicros = micros();
+  tick ++;  
   for (byte address = 1; address < 127; address++){
     Wire.beginTransmission(address);
     if (Wire.endTransmission() == 0){
@@ -214,7 +216,7 @@ void loop() {
         readChirp();
       }
       if (address == 0x76 || address == 0x77) {
-        readBme280(address);
+        if (!readBme280(address)) readBme680();
       }
       if (address == 0x23 || address == 0x5C){
         readBH1750(address);
@@ -224,7 +226,7 @@ void loop() {
   
   readDHT();
   
-  readSys();
+  readSys(lastLoopTime, firstLoop);
   
   if (SPIFFS.exists("/data.dat")){
     DataPoint d;
@@ -232,33 +234,39 @@ void loop() {
     size_t readPos = 0;
     bool failedWrite = false;
     while ((readPos = readDataPoint(&d, readPos)) != 0) {
-        switch (d.type)
-        {
+        switch (d.type){
           case INT:
             Serial.printf("[]-> %lu %s %d\n", d.time, d.name, (int)d.value);
             break;
           case FLOAT:
-            Serial.printf("[]-> %lu %s %.2f\n", d.time, d.name, d.value);
+            Serial.printf("[]-> %lu %s %.2f\n", d.time, d.name, (float)d.value);
             break;
+          case DOUBLE:
+            Serial.printf("[]-> %lu %s %.2f\n", d.time, d.name, (double)d.value);
+            break;
+          case BOOL:
+            Serial.printf("[]-> %lu %s %s\n", d.time, d.name, ((bool)d.value)?"true":"false");
+          break;
         } 
         for (size_t tries = 0; tries < 3; tries++){
           if(postDataPointToInfluxDB(&d)) break;
           failedWrite = true;
           delay(100);
         }
-        
     }
     if(!failedWrite) SPIFFS.remove("/data.dat");
   }
   unsigned long delta = micros() - startMicros;
+  if(delta >= sleepMicros){
+      delta = sleepMicros;
+    }
   #ifdef ESP_DEEPSLEEP
     ESP.deepSleep(sleepMicros-delta);
   #else
-    if(delta >= sleepMicros){
-      delta = sleepMicros;
-    }
+    firstLoop = false;
     unsigned long sleepTotal = (sleepMicros-delta)/1000;
+    lastLoopTime = delta;
     Serial.printf("Delay for %.3fs\n", sleepTotal/(float)1000);
-    delay(sleepTotal);  
+    delay(sleepTotal);
   #endif
 }
