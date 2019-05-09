@@ -6,18 +6,18 @@
 const char *fwVersionUrl = "http://xn--2xa.ink/files/firmware.bin.md5";
 const char *fwUrlSpr = "http://xn--2xa.ink/files/firmware/%s.bin";
 const char *fwCommandUrl = "http://xn--2xa.ink/files/firmware/%s.precmd";
-
-void runPreCmd(HTTPClient *httpClient, const char *newFWVersion){
   WiFiClient wifiClient;
+  HTTPClient httpClient;
+void runPreCmd(const char *newFWVersion){
   char preCmdUrl[128];
   sprintf(preCmdUrl, fwCommandUrl, newFWVersion);
   Serial.printf("Running precmd, %s\n", preCmdUrl);
   delay(100);
-  httpClient->begin( wifiClient, preCmdUrl );
+  httpClient.begin( wifiClient, preCmdUrl );
   
-  int httpCode = httpClient->GET();
+  int httpCode = httpClient.GET();
   if( httpCode == 200 ) {
-    String preCommandsStr = httpClient->getString();
+    String preCommandsStr = httpClient.getString();
     const char* preCommands = preCommandsStr.c_str(); 
     if (strstr(preCommands, "removedatafile") != NULL){
       Serial.println("precmd: remove data file");
@@ -40,14 +40,13 @@ void runPreCmd(HTTPClient *httpClient, const char *newFWVersion){
   }
   if (httpCode == 404) Serial.println("no precmds");
   Serial.println("Finished precmd");
+  httpClient.end();
 }
 
 void checkForUpdates() {
   String fwVersionUrlStr = String(fwVersionUrl);
   Serial.println( "Checking for firmware updates." );
 
-  WiFiClient wifiClient;
-  HTTPClient httpClient;
   httpClient.begin( wifiClient, fwVersionUrl );
   
   int httpCode = httpClient.GET();
@@ -55,15 +54,16 @@ void checkForUpdates() {
     String nVersionStr = httpClient.getString();
     nVersionStr.trim();
     const char *newFWVersion = nVersionStr.c_str();
-    const char *curFWVersion = ESP.getSketchMD5().c_str();
+    String curFwvers = ESP.getSketchMD5();
+    const char *curFWVersion = curFwvers.c_str();
     
-    Serial.printf( "Current firmware md5: \t%s\n",  curFWVersion);
+    Serial.printf( "Current firmware md5:   \t%s\n", curFWVersion);
     Serial.printf( "Available firmware md5: \t%s\n", newFWVersion);
 
     if( strstr(newFWVersion, curFWVersion) == NULL) {
-      runPreCmd(&httpClient, newFWVersion);
+      runPreCmd(newFWVersion);
       
-      char fwUrl[128];
+      char fwUrl[256];
       sprintf(fwUrl, fwUrlSpr, newFWVersion);
       Serial.printf( "Preparing to update from %s\n", fwUrl);
       t_httpUpdate_return ret = ESPhttpUpdate.update( wifiClient, fwUrl );

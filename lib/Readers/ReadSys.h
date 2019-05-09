@@ -13,7 +13,7 @@ void readSys(unsigned long lastLoopTime, bool firstLoop){
   dps[n++] = createDataPoint(INT, "lastLoopTime", "sys", lastLoopTime);
   dps[n++] = createDataPoint(INT, "espSketchSize", "sys", ESP.getSketchSize());
   
-  float until = (int)(UPDATE_HOURS*60)-(tick-1) % (int)(UPDATE_HOURS*60);
+  float until = (int)(UPDATE_HOURS*60)-(otaInterval-1) % (int)(UPDATE_HOURS*60);
   dps[n++] = createDataPoint(INT, "secondsUntilNextUpdate", "sys", (int)until*60);
 
   if (firstLoop){

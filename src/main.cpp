@@ -17,7 +17,7 @@
 // DEFINES
 #define DEBUG_POST false
 #define DEBUG_WIFI_CONNECTION false
-#define NO_STARTUP_UPDATE true
+#define NO_STARTUP_UPDATE false
 #define UPDATE_HOURS 2
 
 #define DHTPIN D5
@@ -201,6 +201,7 @@ void setup() {
 double lastLoopTime = 0;
 bool firstLoop = true; 
 void loop() {
+  ticker.attach(0.01, flashLed);
   unsigned long startMicros = micros();
 
   // run update on second loop (tick+1)
@@ -272,6 +273,8 @@ void loop() {
     unsigned long sleepTotal = (sleepMicros-delta)/1000;
     lastLoopTime = delta;
     Serial.printf("Delay for %.3fs\n", sleepTotal/(float)1000);
+    ticker.attach(1.0, flashLed);
     delay(sleepTotal);
+    
   #endif
 }

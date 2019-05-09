@@ -186,6 +186,7 @@ int postDataPointToInfluxDB(DataPoint *d){
   if (strcmp(d->sensorType, "") != 0){
     sprintf(metric, "%s,sensorType=%s", metric, d->sensorType);
   }
+  strcat(metric, " ");
   switch (d->type){
     case INT:
       sprintf(metric, "%s %s=%di %lu", metric, d->name, (int)d->value, d->time);
