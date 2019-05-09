@@ -17,6 +17,7 @@
 // DEFINES
 #define DEBUG_POST false
 #define DEBUG_WIFI_CONNECTION false
+#define NO_STARTUP_UPDATE true
 #define UPDATE_HOURS 2
 
 #define DHTPIN D5
@@ -34,7 +35,7 @@ ADC_MODE(ADC_VCC);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "au.pool.ntp.org", 0);
 struct Config cfg;
-static uint32_t tick = 0;
+static uint32_t otaInterval = 1;
 bool shouldSaveConfig = false;
 unsigned int sleepMinutes;
 unsigned long sleepMicros;
@@ -72,7 +73,7 @@ void reset(){
   }
   
   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
-  tick = (uint32_t)((UPDATE_HOURS*60)/sleepMinutes) - 1;
+  otaInterval = 0; // reset the ota interval
   
   // need to mash the flash button
   if (flashButtonCounter < 10) {
@@ -92,18 +93,18 @@ void reset(){
   WiFiManager wifiManager;
   // reset settings - for testing
   wifiManager.resetSettings();
-  WiFi.disconnect();
+  WiFi.disconnect(true);
   Serial.println("Config reset, rebooting...");
-  ESP.reset();
+  ESP.restart();
 }
 
 void setup() {
-
   Serial.println("mounting FS...");
   while (!SPIFFS.begin()) {
     Serial.println("failed to mount FS");
     delay(100);
   }
+  pinMode(A0, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(0, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(0), reset, FALLING);
@@ -113,7 +114,7 @@ void setup() {
   Serial.println();
 
   //clean FS, for testing
-  //SPIFFS.format();
+  // SPIFFS.format();
   //read configuration from FS json
   loadConfig(&cfg);
 
@@ -188,9 +189,10 @@ void setup() {
   Wire.begin(4,5);
   sleepMinutes = atoi(cfg.interval);
   sleepMicros  = sleepMinutes*6e+7;
-#if ((!DEBUG_POST) && (!DEBUG_WIFI_CONNECTION))
+#if ((!DEBUG_POST) && (!DEBUG_WIFI_CONNECTION) && (!NO_STARTUP_UPDATE))
   checkForUpdates();
 #else
+  Serial.println("NOT UPDATING ON BOOT!");
   Serial.printf("Sketch md5: %s\n", ESP.getSketchMD5().c_str());
 #endif
 
@@ -202,12 +204,12 @@ void loop() {
   unsigned long startMicros = micros();
 
   // run update on second loop (tick+1)
-  if ((tick+1) % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
+  if (otaInterval % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
     checkForUpdates();
   }else{
-    Serial.printf("Not time for update %d/%d\n", tick, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
+    Serial.printf("Not time for update %d/%d\n", otaInterval, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
   }
-  tick ++;  
+  otaInterval ++;  
   for (byte address = 1; address < 127; address++){
     Wire.beginTransmission(address);
     if (Wire.endTransmission() == 0){
@@ -234,6 +236,9 @@ void loop() {
     size_t readPos = 0;
     bool failedWrite = false;
     while ((readPos = readDataPoint(&d, readPos)) != 0) {
+        if (d.time == 0 || strcmp(d.name, "") == 0){
+          continue;
+        }
         switch (d.type){
           case INT:
             Serial.printf("[]-> %lu %s %d\n", d.time, d.name, (int)d.value);

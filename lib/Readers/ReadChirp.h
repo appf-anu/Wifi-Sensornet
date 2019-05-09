@@ -7,6 +7,8 @@ void readChirp(){
   chirpSensor.begin(true); // wait needs 1s for startup
   while (chirpSensor.isBusy()) delay(50);
   unsigned int soilCapacitance = chirpSensor.getCapacitance();
+  while (soilCapacitance > 5000)
+  
   DataPoint dps[2];
   memset(dps, 0, sizeof(dps));
   dps[0] = createDataPoint(INT, "soilCapacitance", "chirp", soilCapacitance, t);

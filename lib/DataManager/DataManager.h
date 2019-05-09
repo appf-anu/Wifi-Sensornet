@@ -4,6 +4,9 @@
 #include <ESP8266WiFi.h>
 #include <EnvironmentCalculations.h>  //https://github.com/finitespace/BME280
 
+WiFiClient wifi;
+HTTPClient http;
+
 typedef enum {
     INT,
     FLOAT,
@@ -126,21 +129,19 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorTyp
 #endif
   
   // http request
-  WiFiClient wifi;
-  HTTPClient http;
-  http.setReuse(false);
-  http.setTimeout(10000);
+  http.setTimeout(5000);
   http.begin(wifi, url);
   http.addHeader("Content-Type", "text/plain");
   int httpCode = http.POST(metric);
   String payload = http.getString();
   
-  Serial.printf("posted %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
-  if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK))
-    Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
-
+  Serial.printf("POSTBULK %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
+  if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
+    Serial.println(metric);
+    Serial.printf("POSTBULK to %s returned %d: %s\n", url, httpCode, payload.c_str());
+  }
   http.end();
-  return httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK;
+  return (httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK);
 }
 
 void bulkOutputDataPoints(DataPoint *d, size_t num, const char *sensorType, unsigned long t){
@@ -155,10 +156,10 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char *sensorType, unsi
   }
 
   for (size_t tries = 0; tries < 3; tries++ ){
-    if (postBulkDataPointsToInfluxdb(d, num, sensorType, t)){
-      delay(100); // sleep a little bit so as not to hammer the server.
+    if (postBulkDataPointsToInfluxdb(d, num, sensorType, t)){  
       return;
     }
+    delay(1000); // sleep a second so as not to hammer the server.
   }
 
   for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
@@ -200,27 +201,26 @@ int postDataPointToInfluxDB(DataPoint *d){
       break;
   }
   
-
 #if DEBUG_POST
   Serial.println(metric);
   return 1;
 #endif
 
   // http request
-  WiFiClient wifi;
-  HTTPClient http;
-  http.setReuse(false);
-  http.setTimeout(10000);
+  http.setTimeout(5000);
   http.begin(wifi, url);
   http.addHeader("Content-Type", "text/plain");
   int httpCode = http.POST(metric);
   String payload = http.getString();
   
-  Serial.printf("posted %s: %db to server got %d\n", d->sensorType, strlen(metric), httpCode);
-  if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK))
+  Serial.printf("POST %s: %db to server got %d\n", d->sensorType, strlen(metric), httpCode);
+  if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
+    Serial.println(metric);
     Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
+  }
+
   http.end();
-  return httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK;
+  return (httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK);
 }
 
 void outputPoint(TYPE dtype, const char name[32], const char *sensorType, double value, unsigned long int t){
@@ -228,7 +228,7 @@ void outputPoint(TYPE dtype, const char name[32], const char *sensorType, double
   memset(&d, 0, sizeof(d));
   d.time = t;
   d.type = dtype;
-  strncpy(d.sensorType, sensorType, 8);
+  strcpy(d.sensorType, sensorType);
   strcpy(d.name, name);
   d.value = value;
 #if DEBUG_WIFI_CONNECTION
@@ -242,9 +242,9 @@ void outputPoint(TYPE dtype, const char name[32], const char *sensorType, double
   }
   for (size_t tries = 0; tries < 3; tries++ ){
     if (postDataPointToInfluxDB(&d)){
-      delay(100); // sleep a little bit so as not to hammer the server.
       return;
-    } 
+    }
+    delay(1000); // sleep a second so as not to hammer the server.
   }
   writeDataPoint(&d);
 }
