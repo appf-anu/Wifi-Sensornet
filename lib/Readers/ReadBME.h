@@ -20,13 +20,13 @@ bool readBme280(byte address){
   BME280I2C bme(settings);
 
   size_t tries = 0;
-  while (!bme.begin()){
-    if (tries >= 10) {
-      Serial.println("Tried too many times to communicate with bme280");
-      return false;
-    }
-    tries++;
+  do {
     delay(250);
+  } while (tries++ <= 10 && !bme.begin());
+
+  if (tries >= 10) {
+    Serial.println("Tried too many times to communicate with bme280");
+    return false;
   }
 
   delay(250);
@@ -41,12 +41,16 @@ bool readBme280(byte address){
 
   if (bme.chipModel() ==  BME280::ChipModel_BME280){
     // whatever is going on here it gives weird values.
-    bme.read(pres, temp, hum, tempUnit, presUnit);
-    delay(100);
-    t = timeClient.getEpochTime();
-    
-    bme.read(pres, temp, hum, tempUnit, presUnit);
     Serial.println("Read From bme280");
+    size_t tries = 0;
+    do {
+      t = timeClient.getEpochTime();
+      bme.read(pres, temp, hum, tempUnit, presUnit);
+      delay(100);
+    } while (tries++ <= 10 && !(temp >= -30.0f));
+
+    if (tries >= 10) return false;
+    
     DataPoint dps[4];
     memset(dps, 0, sizeof(dps));
 
@@ -63,14 +67,15 @@ bool readBme280(byte address){
   }
   
   if (bme.chipModel() == BME280::ChipModel_BMP280){
-    // whatever is going on here it gives weird values.
-    bme.read(pres, temp, hum, tempUnit, presUnit);
-    delay(100);
-    t = timeClient.getEpochTime();
-    
-    bme.read(pres, temp, hum, tempUnit, presUnit);
-    
     Serial.println("Read From bmp280");
+    size_t tries = 0;
+    do {
+      t = timeClient.getEpochTime();
+      bme.read(pres, temp, hum, tempUnit, presUnit);
+      delay(100);
+    } while (tries++ <= 10 && !(temp >= -30.0f));
+    if (tries >= 10) return false;
+    
     DataPoint dps[3];
     memset(dps, 0, sizeof(dps));
 
@@ -81,22 +86,20 @@ bool readBme280(byte address){
     bulkOutputDataPoints(dps, 3, "bmp280", t);
     // no extra environment values
   }
-
   return true; 
 }
-
 
 bool readBme680(){
   unsigned long int t;
   Adafruit_BME680 bme; // I2C
   size_t tries = 0;
-  while (!bme.begin()){
-    if (tries >= 10) {
-      Serial.println("Tried too many times to communicate with bme680");
-      return false;
-    }
-    tries++;
+  do {
     delay(250);
+  } while (tries++ <= 10 && !bme.begin());
+
+  if (tries >= 10) {
+    Serial.println("Tried too many times to communicate with bme680");
+    return false;
   }
 
   bme.setTemperatureOversampling(BME680_OS_8X);
@@ -107,14 +110,13 @@ bool readBme680(){
 
   Serial.println("Read From bme680");
   tries = 0;
-  while (!bme.performReading()){
-    if (tries >= 10) {
-      Serial.println("Tried too many times to perform reading.");
-      return false;
-    }
-    tries++;
+  do {
+    t = timeClient.getEpochTime();
     delay(250);
-  }
+  } while (tries++ <= 10 && !bme.performReading());
+
+  if (tries >= 10) return false;
+
   t = timeClient.getEpochTime(); // if we got here, reading succeeded and the time is now
   DataPoint dps[5];
   memset(dps, 0, sizeof(dps));
