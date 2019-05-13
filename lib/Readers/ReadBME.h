@@ -4,6 +4,14 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME680.h>
 
+#define MAX_TRIES 5
+
+#define MAX_TEMP 200
+#define MIN_TEMP -100
+#define MAX_HUM 100
+#define MIN_HUM 0
+
+
 bool readBme280(byte address){
   unsigned long int t;
   
@@ -22,9 +30,9 @@ bool readBme280(byte address){
   size_t tries = 0;
   do {
     delay(250);
-  } while (tries++ <= 10 && !bme.begin());
+  } while (tries++ < MAX_TRIES && !bme.begin());
 
-  if (tries >= 10) {
+  if (tries >= MAX_TRIES) {
     Serial.println("Tried too many times to communicate with bme280");
     return false;
   }
@@ -47,9 +55,11 @@ bool readBme280(byte address){
       t = timeClient.getEpochTime();
       bme.read(pres, temp, hum, tempUnit, presUnit);
       delay(100);
-    } while (tries++ <= 10 && !(temp >= -30.0f));
+    } while (tries++ < MAX_TRIES && 
+          !(temp < MAX_TEMP && temp > MIN_TEMP) &&
+          !(hum < MAX_HUM && hum > MIN_HUM));
 
-    if (tries >= 10) return false;
+    if (tries >= MAX_TRIES) return false;
     
     DataPoint dps[4];
     memset(dps, 0, sizeof(dps));
@@ -73,8 +83,9 @@ bool readBme280(byte address){
       t = timeClient.getEpochTime();
       bme.read(pres, temp, hum, tempUnit, presUnit);
       delay(100);
-    } while (tries++ <= 10 && !(temp >= -30.0f));
-    if (tries >= 10) return false;
+    } while (tries++ < MAX_TRIES && 
+          !(temp < MAX_TEMP && temp > MIN_TEMP)); // bmp280 only has temperature and pressure
+    if (tries >= MAX_TRIES) return false;
     
     DataPoint dps[3];
     memset(dps, 0, sizeof(dps));
@@ -95,9 +106,9 @@ bool readBme680(){
   size_t tries = 0;
   do {
     delay(250);
-  } while (tries++ <= 10 && !bme.begin());
+  } while (tries++ < MAX_TRIES && !bme.begin());
 
-  if (tries >= 10) {
+  if (tries >= MAX_TRIES) {
     Serial.println("Tried too many times to communicate with bme680");
     return false;
   }
@@ -113,9 +124,9 @@ bool readBme680(){
   do {
     t = timeClient.getEpochTime();
     delay(250);
-  } while (tries++ <= 10 && !bme.performReading());
+  } while (tries++ < MAX_TRIES && !bme.performReading());
 
-  if (tries >= 10) return false;
+  if (tries >= MAX_TRIES) return false;
 
   t = timeClient.getEpochTime(); // if we got here, reading succeeded and the time is now
   DataPoint dps[5];
