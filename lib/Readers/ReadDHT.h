@@ -36,8 +36,8 @@ bool readDHT(){
   dps[0] = createDataPoint(FLOAT, "airTemperature", "dht22", temp, t);
   dps[1] = createDataPoint(FLOAT, "airRelativeHumidity", "dht22", hum, t);
   bulkOutputDataPoints(dps, 2, "dht22", t);
-  DataPoint env[6];
-  size_t n = createEnvironmentData(env, "dht22", t, temp, hum);
+  
+  size_t n = createEnvironmentData("dht22", t, temp, hum);
   bulkOutputDataPoints(env, n, "dht22", t);
   return true;
 }

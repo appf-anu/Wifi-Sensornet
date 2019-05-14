@@ -7,6 +7,7 @@
 WiFiClient wifi;
 HTTPClient http;
 
+
 typedef enum {
     INT,
     FLOAT,
@@ -22,6 +23,8 @@ struct DataPoint
     double value;
     TYPE type;
 };
+
+DataPoint env[9];
 
 int writeDataPoint(DataPoint *d){
     File f = SPIFFS.open("/data.dat", "a+");
@@ -250,59 +253,71 @@ void outputPoint(TYPE dtype, const char name[32], const char *sensorType, double
   writeDataPoint(&d);
 }
 
-size_t createEnvironmentData(DataPoint dps[8], const char *sensorType, unsigned long int t, double temp, double hum, double pres){
-  EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
-  // abshum in grams/m³
+size_t createEnvironmentData(const char *sensorType, unsigned long int t, double temp, double hum, double pres){
+  // pressure should be in hectopascals!!!
 
+  memset(env, 0, sizeof(env));
+  size_t n = 0;
+
+  EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
+  EnvironmentCalculations::AltitudeUnit envAltUnit  =  EnvironmentCalculations::AltitudeUnit_Meters;
+
+  double eslp = EnvironmentCalculations::EquivalentSeaLevelPressure(ALTITUDECONSTANT, temp, pres, envAltUnit, envTempUnit);
+  env[n++] = createDataPoint(FLOAT,"airEquivalentSeaLevelPressure", "bme280", eslp, t);
+  // abshum in grams/m³
   double airAbsoluteHumidity = EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit);
-  dps[0] = createDataPoint(FLOAT, "airAbsoluteHumidity", sensorType, airAbsoluteHumidity, t);
+  env[n++] = createDataPoint(FLOAT, "airAbsoluteHumidity", sensorType, airAbsoluteHumidity, t);
 
   unsigned int airHeatIndex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
+  env[n++] = createDataPoint(INT, "airHeatIndex", sensorType, airHeatIndex, t);
 
-  dps[1] = createDataPoint(INT, "airHeatIndex", sensorType, airHeatIndex, t);
   double airDewPoint = EnvironmentCalculations::DewPoint(temp, hum, envTempUnit);
-  dps[2] = createDataPoint(FLOAT, "airDewPoint", sensorType, airDewPoint, t);
+  env[n++] = createDataPoint(FLOAT, "airDewPoint", sensorType, airDewPoint, t);
+  
   // saturated vapor pressure (es)
   double saturatedVapourPressure = 0.6108 * exp(17.27*temp/(temp+237.3));
-  dps[3] = createDataPoint(FLOAT, "airSaturatedVaporPressure", sensorType, saturatedVapourPressure, t);
+  env[n++] = createDataPoint(FLOAT, "airSaturatedVaporPressure", sensorType, saturatedVapourPressure, t);
   // actual vapor pressure (ea)
   double actualVapourPressure = hum / 100 * saturatedVapourPressure;
-  dps[4] = createDataPoint(FLOAT, "airActualVaporPressure", sensorType, saturatedVapourPressure, t);
+  env[n++] = createDataPoint(FLOAT, "airActualVaporPressure", sensorType, saturatedVapourPressure, t);
 
   // this equation returns a negative value (in kPa), which while technically correct,
   // is invalid in this case because we are talking about a deficit.
   double vapourPressureDeficit = (actualVapourPressure - saturatedVapourPressure) * -1;
-  dps[5] = createDataPoint(FLOAT, "airVapourPressureDeficit", sensorType, vapourPressureDeficit, t);
+  env[n++] = createDataPoint(FLOAT, "airVapourPressureDeficit", sensorType, vapourPressureDeficit, t);
 
   // mixing ratio
   double mixingRatio = 621.97 * actualVapourPressure / ((pres/10) - actualVapourPressure);
-  dps[6] = createDataPoint(FLOAT, "airMixingRatio", sensorType, mixingRatio, t);
+  env[n++] = createDataPoint(FLOAT, "airMixingRatio", sensorType, mixingRatio, t);
   // saturated mixing ratio
   double saturatedMixingRatio = 621.97 * saturatedVapourPressure / ((pres/10) - saturatedVapourPressure);
-  dps[7] = createDataPoint(FLOAT, "airSaturatedMixingRatio", sensorType, saturatedMixingRatio, t);
-  return 8;
+  env[n++] = createDataPoint(FLOAT, "airSaturatedMixingRatio", sensorType, saturatedMixingRatio, t);
+  return n;
 }
 
-size_t createEnvironmentData(DataPoint dps[6], const char *sensorType, unsigned long int t, double temp, double hum){
+size_t createEnvironmentData(const char *sensorType, unsigned long int t, double temp, double hum){ 
+  memset(env, 0, sizeof(env));
+  size_t n = 0;
   
   EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
   // abshum in grams/m³
+  
   double airAbsoluteHumidity = EnvironmentCalculations::AbsoluteHumidity(temp, hum, envTempUnit);
-  dps[0] = createDataPoint(FLOAT, "airAbsoluteHumidity", sensorType, airAbsoluteHumidity, t);
+  env[n++] = createDataPoint(FLOAT, "airAbsoluteHumidity", sensorType, airAbsoluteHumidity, t);
   
   unsigned int airHeatIndex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
-  dps[1] = createDataPoint(INT, "airHeatIndex", sensorType, airHeatIndex, t);
+  env[n++] = createDataPoint(INT, "airHeatIndex", sensorType, airHeatIndex, t);
   double airDewPoint = EnvironmentCalculations::DewPoint(temp, hum, envTempUnit);
-  dps[2] = createDataPoint(FLOAT, "airDewPoint", sensorType, airDewPoint, t);
+  env[n++] = createDataPoint(FLOAT, "airDewPoint", sensorType, airDewPoint, t);
   // saturated vapor pressure (es)
   double saturatedVapourPressure = 0.6108 * exp(17.27*temp/(temp+237.3));
-  dps[3] = createDataPoint(FLOAT, "airSaturatedVaporPressure", sensorType, saturatedVapourPressure, t);
+  env[n++] = createDataPoint(FLOAT, "airSaturatedVaporPressure", sensorType, saturatedVapourPressure, t);
   // actual vapor pressure (ea)
   double actualVapourPressure = hum / 100 * saturatedVapourPressure;
-  dps[4] = createDataPoint(FLOAT, "airActualVaporPressure", sensorType, saturatedVapourPressure, t);
+  env[n++] = createDataPoint(FLOAT, "airActualVaporPressure", sensorType, saturatedVapourPressure, t);
   // this equation returns a negative value (in kPa), which while technically correct,
   // is invalid in this case because we are talking about a deficit.
   double vapourPressureDeficit = (actualVapourPressure - saturatedVapourPressure) * -1;
-  dps[5] = createDataPoint(FLOAT, "airVapourPressureDeficit", sensorType, vapourPressureDeficit, t);
-  return 6;
+  env[n++] = createDataPoint(FLOAT, "airVapourPressureDeficit", sensorType, vapourPressureDeficit, t);
+  return n;
 }

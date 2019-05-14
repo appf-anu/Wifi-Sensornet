@@ -28,7 +28,6 @@
 
 ADC_MODE(ADC_VCC);
 
-
 // You can specify the time server pool and the offset (in seconds, can be
 // changed later with setTimeOffset() ). Additionaly you can specify the
 // update interval (in milliseconds, can be changed using setUpdateInterval() ).
@@ -232,34 +231,37 @@ void loop() {
   
   readSys(lastLoopTime, firstLoop);
   
-  if (SPIFFS.exists("/data.dat")){
+  if (SPIFFS.exists("/data.dat") && WiFi.status() == WL_CONNECTED){
     DataPoint d;
     memset(&d, 0, sizeof(d));
     size_t readPos = 0;
     bool failedWrite = false;
+    File f = SPIFFS.open("/data.dat", "r");
+    size_t fileSize = f.size();
+    f.close();
     while ((readPos = readDataPoint(&d, readPos)) != 0) {
-        if (d.time == 0 || strcmp(d.name, "") == 0){
-          continue;
-        }
-        switch (d.type){
-          case INT:
-            Serial.printf("[]-> %lu %s %d\n", d.time, d.name, (int)d.value);
-            break;
-          case FLOAT:
-            Serial.printf("[]-> %lu %s %.2f\n", d.time, d.name, (float)d.value);
-            break;
-          case DOUBLE:
-            Serial.printf("[]-> %lu %s %.2f\n", d.time, d.name, (double)d.value);
-            break;
-          case BOOL:
-            Serial.printf("[]-> %lu %s %s\n", d.time, d.name, ((bool)d.value)?"true":"false");
+      if (d.time == 0 || strcmp(d.name, "") == 0){
+        Serial.println("breaking");
+        break;
+      }
+      switch (d.type){
+        case INT:
+          Serial.printf("[%05d/%05d]-> %lu %s %d\n", readPos, fileSize, d.time, d.name, (int)d.value);
           break;
-        } 
-        for (size_t tries = 0; tries < 3; tries++){
-          if(postDataPointToInfluxDB(&d)) break;
-          failedWrite = true;
-          delay(100);
-        }
+        case FLOAT:
+          Serial.printf("[%05d/%05d]-> %lu %s %.2f\n", readPos, fileSize, d.time, d.name, (float)d.value);
+          break;
+        case DOUBLE:
+          Serial.printf("[%05d/%05d]-> %lu %s %.2f\n", readPos, fileSize, d.time, d.name, (double)d.value);
+          break;
+        case BOOL:
+          Serial.printf("[%05d/%05d]-> %lu %s %s\n", readPos, fileSize, d.time, d.name, ((bool)d.value)?"true":"false");
+        break;
+      }
+      size_t tries = 0;
+      do {
+        delay(100);
+      } while(tries++ < 3 && !postDataPointToInfluxDB(&d));
     }
     if(!failedWrite) SPIFFS.remove("/data.dat");
   }

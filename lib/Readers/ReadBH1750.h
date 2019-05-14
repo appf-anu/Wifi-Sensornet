@@ -1,3 +1,5 @@
+#define CALIBRATE_SPECIFIC_LAMPS false
+
 // https://www.apogeeinstruments.com/conversion-ppfd-to-lux/
 #define PPFD_CALIBRATION_SUNLIGHT       0.0185 //Sunlight
 #define PPFD_CALIBRATION_FLOURESCENT    0.0135 //Cool White Fluorescent Lamps
@@ -7,8 +9,6 @@
 #define PPFD_CALIBRATION_DEHPS          0.0130 //Dual-Ended High Pressure Sodium (DEHPS): ePapillion 1000 W
 #define PPFD_CALIBRATION_CMH942         0.0154  //Ceramic Metal Halide (CMH942): standard 4200 K color temperature
 #define PPFD_CALIBRATION_CMH930         0.0170 //Ceramic Metal Halide (CMH930-Agro): 3100 K color temperature, spectrum shifted to red wavelengths
-
-#define CALIBRATE_SPECIFIC_LAMPS false
 
 #include <BH1750.h>
 

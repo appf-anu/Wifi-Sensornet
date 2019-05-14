@@ -36,8 +36,8 @@ bool readChirp(){
   DataPoint dps[2];
   memset(dps, 0, sizeof(dps));
   dps[0] = createDataPoint(INT, "soilCapacitance", "chirp", soilCapacitance, t);
-  // temperature is in multiple of 10
   
+  // temperature is in multiple of 10
   dps[1] = createDataPoint(FLOAT, "soilTemperature", "chirp", soilTemperature, t);
 
   bulkOutputDataPoints(dps, 2, "chirp", t);
