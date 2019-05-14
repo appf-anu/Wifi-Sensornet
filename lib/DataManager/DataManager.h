@@ -98,7 +98,7 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorTyp
   String sketchmd5 = ESP.getSketchMD5();
   
   strcpy(metric, "sensornode");
-  sprintf(metric, "%s,chipid=%d,sketchmd5=%s,location=%s",
+  sprintf(metric, "%s,chipid=%06X,sketchmd5=%s,location=%s",
           metric, 
           chipId, sketchmd5.c_str(), cfg.location);
   
@@ -294,6 +294,7 @@ size_t createEnvironmentData(const char *sensorType, unsigned long int t, double
   env[n++] = createDataPoint(FLOAT, "airSaturatedMixingRatio", sensorType, saturatedMixingRatio, t);
   return n;
 }
+
 
 size_t createEnvironmentData(const char *sensorType, unsigned long int t, double temp, double hum){ 
   memset(env, 0, sizeof(env));

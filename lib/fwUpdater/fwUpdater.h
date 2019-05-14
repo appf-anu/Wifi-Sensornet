@@ -35,7 +35,9 @@ void runPreCmd(const char *newFWVersion){
     }
     if (strstr(preCommands, "resetwifi") != NULL){
       Serial.println("precmd: resetting wifi");
-      WiFi.disconnect(true);
+      // todo, fix this. will disconnect and then wontbadly.
+      ESP.eraseConfig();
+      // WiFi.disconnect(true);
     }
   }
   if (httpCode == 404) Serial.println("no precmds");

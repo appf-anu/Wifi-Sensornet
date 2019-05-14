@@ -85,12 +85,11 @@ void reset(){
     Serial.printf("press the flash button %d more times to reset config...\n", 15-flashButtonCounter);
     return;
   }
-  Serial.println("Resetting configuration....");
+  Serial.println("resetting configuration....");
   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
   // SPIFFS.remove("/config.json");
   
   WiFiManager wifiManager;
-  // reset settings - for testing
   wifiManager.resetSettings();
   WiFi.disconnect(true);
   Serial.println("Config reset, rebooting...");
@@ -114,7 +113,7 @@ void setup() {
 
   //clean FS, for testing
   // SPIFFS.format();
-  //read configuration from FS json
+  //read configuration from FS
   loadConfig(&cfg);
 
   // The extra parameters to be configured (can be either global or just in the setup)
@@ -127,6 +126,7 @@ void setup() {
   WiFiManagerParameter custom_influxdb_password("password", "password", cfg.influxdb_password, 32);
   WiFiManagerParameter custom_interval("interval", "interval", cfg.interval, 4);
   WiFiManagerParameter custom_location("location", "location", cfg.location, 16);
+
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
@@ -146,8 +146,9 @@ void setup() {
   //fetches ssid and pass and tries to connect
   //if it does not connect it starts an access point with the specified name
   //and goes into a blocking loop awaiting configuration
-  
-  if (!wifiManager.autoConnect("Wifi-Sensornet")) {
+  char wifiName[17];
+  sprintf(wifiName, "Sensornet %06x", ESP.getChipId());
+  if (!wifiManager.autoConnect(wifiName)) {
     Serial.println("failed to connect and hit timeout");
     delay(3000);
     //reset and try again, or maybe put it to deep sleep
