@@ -8,12 +8,24 @@
 
 #define MAX_TRIES 5
 
-#define MAX_TEMP 200
-#define MIN_TEMP -100
-#define MAX_HUM 100
-#define MIN_HUM 0
+#define BME_MAX_TEMP 85
+#define BME_MIN_TEMP -40
+#define BME_MAX_HUM 100
+#define BME_MIN_HUM 0
+#define BME_MIN_PRES 300
+#define BME_MAX_PRES 1100
 
 Adafruit_BME280 bme;
+
+
+bool isValidBME(float temperature, float humidity, float pressure){
+  if (isnan(temperature) || isnan(humidity) || isnan(pressure)) return false;
+  if (temperature < BME_MIN_TEMP || temperature > BME_MAX_TEMP) return false;
+  if (humidity < BME_MIN_HUM || humidity > BME_MAX_HUM) return false;
+  if (pressure < BME_MIN_PRES || pressure > BME_MAX_PRES) return false;
+  return true;
+}
+
 
 bool readBme280(byte address){
   unsigned long int t;
@@ -48,9 +60,7 @@ bool readBme280(byte address){
     pres = bme.readPressure()/100.0F;
     hum = bme.readHumidity();
     delay(100);
-  } while (tries++ < MAX_TRIES && 
-        !(temp < MAX_TEMP && temp > MIN_TEMP) &&
-        !(hum < MAX_HUM && hum > MIN_HUM));
+  } while (tries++ < MAX_TRIES && !isValidBME(temp, hum, pres));
 
   if (tries >= MAX_TRIES) return false;
   
@@ -101,9 +111,7 @@ bool readBme680(){
     hum = bme.readHumidity();
     gas = bme.readGas();
     delay(250); // wait a little bit longer
-  } while (tries++ < MAX_TRIES && 
-          !(temp < MAX_TEMP && temp > MIN_TEMP) &&
-          !(hum < MAX_HUM && hum > MIN_HUM));
+  } while (tries++ < MAX_TRIES && !isValidBME(temp, hum, pres));
 
   if (tries >= MAX_TRIES) return false;
 

@@ -21,8 +21,8 @@
 #define UPDATE_HOURS 2
 
 #define DHTPIN D5
-#define SDA D2
 #define SCL D1
+#define SDA D2
 
 #define ALTITUDECONSTANT 577.0f
 
@@ -48,6 +48,8 @@ unsigned int flashButtonCounter = 0;
 #include <ReadDHT.h>
 #include <ReadBH1750.h>
 #include <ReadSys.h>
+
+
 
 //callback notifying us of the need to save config
 void saveConfigCallback () {

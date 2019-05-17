@@ -4,21 +4,38 @@
 
 I2CSoilMoistureSensor chirpSensor;
 
-#define MAX_TEMP 200
-#define MIN_TEMP -100
-#define MAX_CAP 1000
-#define MIN_CAP 0
+#define CHIRP_MAX_TEMP 200
+#define CHIRP_MIN_TEMP -100
+#define CHIRP_MAX_CAP 1000
+#define CHIRP_MIN_CAP 0
 
+
+bool isValidChirp(unsigned int soilCapacitance, float soilTemperature){
+  if (soilCapacitance > CHIRP_MAX_CAP || soilCapacitance < CHIRP_MIN_CAP){
+    return false;
+  }
+  if (soilTemperature > CHIRP_MAX_TEMP || soilTemperature < CHIRP_MIN_TEMP){
+    return false;
+  }
+  return true;
+}
 
 bool readChirp(){
   // chirp soil moisture sensor is address 0x20
   unsigned long int t;
   chirpSensor.begin(true); // wait needs 1s for startup
-  size_t waits = 0;
-  do {
-    delay(50);
-  } while (chirpSensor.isBusy() && waits < 10);
+  uint8_t version = chirpSensor.getVersion();
+  Serial.printf("Read from chirp v%02X\n", version);
+  if (version >= 0x23){
 
+    chirpSensor.getCapacitance();
+    chirpSensor.getTemperature();
+    size_t waits = 0;
+    do {
+      delay(50);
+    } while (chirpSensor.isBusy() && waits < 10);
+    if (waits >= 10) return false;
+  }
 
   unsigned int soilCapacitance;
   float soilTemperature; 
@@ -28,9 +45,7 @@ bool readChirp(){
     soilCapacitance = chirpSensor.getCapacitance();
     soilTemperature = chirpSensor.getTemperature()/(float)10; 
     delay(100);
-  } while (tries++ < MAX_TRIES && 
-          !( soilCapacitance < MAX_CAP && soilCapacitance > MIN_CAP) &&
-          !( soilTemperature < MAX_TEMP && soilTemperature > MIN_TEMP));
+  } while (tries++ < MAX_TRIES && !isValidChirp(soilCapacitance, soilTemperature));
   if (tries >= MAX_TRIES) return false;
   
   DataPoint dps[2];
@@ -41,6 +56,7 @@ bool readChirp(){
   dps[1] = createDataPoint(FLOAT, "soilTemperature", "chirp", soilTemperature, t);
 
   bulkOutputDataPoints(dps, 2, "chirp", t);
+  
   chirpSensor.sleep();
   return true;
 }

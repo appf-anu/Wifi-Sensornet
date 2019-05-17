@@ -182,7 +182,7 @@ int postDataPointToInfluxDB(DataPoint *d){
   String sketchmd5 = ESP.getSketchMD5();
   
   strcpy(metric, "sensornode");
-  sprintf(metric, "%s,chipid=%d,sketchmd5=%s,location=%s",
+  sprintf(metric, "%s,chipid=%06X,sketchmd5=%s,location=%s",
           metric, 
           chipId, sketchmd5.c_str(), cfg.location);
   
