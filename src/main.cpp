@@ -17,10 +17,11 @@
 // DEFINES
 #define DEBUG_POST false
 #define DEBUG_WIFI_CONNECTION false
-#define NO_STARTUP_UPDATE false
+#define NO_STARTUP_UPDATE true
 #define UPDATE_HOURS 2
 
 #define DHTPIN D5
+#define DALLASPIN D6
 #define SCL D1
 #define SDA D2
 
@@ -40,7 +41,7 @@ unsigned int sleepMinutes;
 unsigned long sleepMicros;
 unsigned int flashButtonCounter = 0;
 
-// this includes include MUST BE AFTER TIMECLIENT AND CFG!!!
+// this include MUST BE AFTER TIMECLIENT AND CFG!!!
 #include <DataManager.h>
 // these includes must be after DataManager
 #include <ReadChirp.h>
@@ -48,8 +49,8 @@ unsigned int flashButtonCounter = 0;
 #include <ReadDHT.h>
 #include <ReadBH1750.h>
 #include <ReadSys.h>
-
-
+#include <ReadDallas.h>
+#include <ReadHDC1000.h>
 
 //callback notifying us of the need to save config
 void saveConfigCallback () {
@@ -149,7 +150,10 @@ void setup() {
   //if it does not connect it starts an access point with the specified name
   //and goes into a blocking loop awaiting configuration
   char wifiName[17];
+  Serial.printf("Begin %06x\n", ESP.getChipId());
   sprintf(wifiName, "Sensornet %06x", ESP.getChipId());
+  //sets timeout until configuration portal gets turned off
+  wifiManager.setTimeout(300);
   if (!wifiManager.autoConnect(wifiName)) {
     Serial.println("failed to connect and hit timeout");
     delay(3000);
@@ -162,6 +166,7 @@ void setup() {
   Serial.println("connected...yeey :)");
 
 
+  
   //read updated parameters
   strcpy(cfg.influxdb_server, custom_influxdb_server.getValue());
   strcpy(cfg.influxdb_port, custom_influxdb_port.getValue());
@@ -206,7 +211,7 @@ void loop() {
   ticker.detach();
   ticker.attach(0.05, flashLed);
   unsigned long startMicros = micros();
-
+  
   // run update on second loop (tick+1)
   if (otaInterval % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
     checkForUpdates();
@@ -224,6 +229,11 @@ void loop() {
       if (address == 0x76 || address == 0x77) {
         if (!readBme280(address)) readBme680();
       }
+
+      if (address == 0x40){
+        readHDC(address);
+      }
+
       if (address == 0x23 || address == 0x5C){
         readBH1750(address);
       }
@@ -231,6 +241,7 @@ void loop() {
   }
   
   readDHT();
+  readDallas();
   
   readSys(lastLoopTime, firstLoop);
   

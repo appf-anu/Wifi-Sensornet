@@ -19,6 +19,7 @@ struct DataPoint
 {
     char name[32];
     char sensorType[8];
+    char sensorAddress[16];
     unsigned long time;
     double value;
     TYPE type;
@@ -68,7 +69,9 @@ int readDataPoint(DataPoint *d, size_t seekNum){
     return seekNum + sizeof(*d);
 }
 
-DataPoint createDataPoint(TYPE dtype, const char name[32], const char *sensorType, double value, unsigned long int t){
+
+
+DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], const char sensorAddress[16], double value, unsigned long int t){
   DataPoint d;
   memset(&d, 0, sizeof(d));
   d.time = t;
@@ -79,11 +82,19 @@ DataPoint createDataPoint(TYPE dtype, const char name[32], const char *sensorTyp
   return d;
 }
 
-DataPoint createDataPoint(TYPE dtype, const char name[32], const char *sensorType, double value){
+DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], double value, unsigned long int t){
+  return createDataPoint(dtype, name, sensorType, "", value, t);
+}
+
+DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], const char sensorAddress[16], double value){
+  return createDataPoint(dtype, name, sensorType, sensorAddress, value, timeClient.getEpochTime());
+}
+
+DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], double value){
   return createDataPoint(dtype, name, sensorType, value, timeClient.getEpochTime());
 }
 
-int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorType, unsigned long t){
+int postMetric(const char *metric, const char sensorType[8]){
   char url[256];
   memset(url, 0, sizeof(url));
   sprintf(url, "http://%s:%s/write?db=%s&precision=s&u=%s&p=%s", 
@@ -91,7 +102,29 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorTyp
     cfg.influxdb_db, 
     cfg.influxdb_user, 
     cfg.influxdb_password);
-  
+
+  #if DEBUG_POST 
+    Serial.println(metric);
+    return 1;
+  #endif
+    
+    // http request
+    http.setTimeout(5000);
+    http.begin(wifi, url);
+    http.addHeader("Content-Type", "text/plain");
+    int httpCode = http.POST(metric);
+    String payload = http.getString();
+    
+    Serial.printf("POST %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
+    if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
+      Serial.println(metric);
+      Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
+    }
+    http.end();
+    return (httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK);
+}
+
+int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char sensorType[8], const char *sensorAddr, unsigned long t){
   char metric[1024];
   memset(metric, 0, sizeof(metric));
   int chipId = ESP.getChipId();
@@ -101,12 +134,15 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorTyp
   sprintf(metric, "%s,chipid=%06X,sketchmd5=%s,location=%s",
           metric, 
           chipId, sketchmd5.c_str(), cfg.location);
-  
   if (strcmp(sensorType, "") != 0){
     sprintf(metric, "%s,sensorType=%s", metric, sensorType);
   }
+  if (strcmp(sensorAddr, "") != 0){
+    sprintf(metric, "%s,sensorAddr=%s", metric, sensorAddr);
+  }
   strcat(metric, " ");
   for (size_t x =0; x < num; x++){
+    
     switch ((d+x)->type){
       case INT:
         sprintf(metric, "%s%s=%di", metric, (d+x)->name, (int)(d+x)->value);
@@ -121,33 +157,14 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char *sensorTyp
         sprintf(metric, "%s%s=%s", metric, (d+x)->name, ((bool)(d+x)->value)?"true":"false");
         break;
     }
-    if (x != num-1) strcat(metric, ",");
+    if (x != num - 1) strcat(metric, ",");
   }
-  sprintf(metric, "%s %lu", metric, t);
-  
-
-#if DEBUG_POST 
-  Serial.println(metric);
-  return 1;
-#endif
-  
-  // http request
-  http.setTimeout(5000);
-  http.begin(wifi, url);
-  http.addHeader("Content-Type", "text/plain");
-  int httpCode = http.POST(metric);
-  String payload = http.getString();
-  
-  Serial.printf("POSTBULK %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
-  if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
-    Serial.println(metric);
-    Serial.printf("POSTBULK to %s returned %d: %s\n", url, httpCode, payload.c_str());
-  }
-  http.end();
-  return (httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK);
+  sprintf(metric, "%s %lu", metric, t); 
+  return postMetric(metric, sensorType);
 }
 
-void bulkOutputDataPoints(DataPoint *d, size_t num, const char *sensorType, unsigned long t){
+
+void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], const char *sensorAddr, unsigned long t){
 #if DEBUG_WIFI_CONNECTION
   Serial.println("Debugging wifi, pretending wifi isnt connected.");
   for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
@@ -159,7 +176,7 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char *sensorType, unsi
   }
 
   for (size_t tries = 0; tries < 3; tries++ ){
-    if (postBulkDataPointsToInfluxdb(d, num, sensorType, t)){  
+    if (postBulkDataPointsToInfluxdb(d, num, sensorType, sensorAddr, t)){  
       return;
     }
     delay(1000); // sleep a second so as not to hammer the server.
@@ -168,6 +185,17 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char *sensorType, unsi
   for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
 }
 
+void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], unsigned long t){
+  bulkOutputDataPoints(d, num, sensorType, "", t);
+}
+
+void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], const char *sensorAddr){
+  bulkOutputDataPoints(d, num, sensorType, sensorAddr, timeClient.getEpochTime());
+}
+
+void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8]){
+  bulkOutputDataPoints(d, num, sensorType, "");
+}
 
 int postDataPointToInfluxDB(DataPoint *d){
   char url[256];
@@ -189,6 +217,10 @@ int postDataPointToInfluxDB(DataPoint *d){
   if (strcmp(d->sensorType, "") != 0){
     sprintf(metric, "%s,sensorType=%s", metric, d->sensorType);
   }
+  if (strcmp(d->sensorAddress, "") != 0){
+    sprintf(metric, "%s,sensorAddr=%s", metric, d->sensorType);
+  }
+  
   strcat(metric, " ");
   switch (d->type){
     case INT:
@@ -204,30 +236,10 @@ int postDataPointToInfluxDB(DataPoint *d){
       sprintf(metric, "%s%s=%s", metric, d->name, ((bool)d->value)?"true":"false");
       break;
   }
-  
-#if DEBUG_POST
-  Serial.println(metric);
-  return 1;
-#endif
-
-  // http request
-  http.setTimeout(5000);
-  http.begin(wifi, url);
-  http.addHeader("Content-Type", "text/plain");
-  int httpCode = http.POST(metric);
-  String payload = http.getString();
-  
-  Serial.printf("POST %s: %db to server got %d\n", d->sensorType, strlen(metric), httpCode);
-  if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
-    Serial.println(metric);
-    Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
-  }
-
-  http.end();
-  return (httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK);
+  return postMetric(metric, d->sensorType);
 }
 
-void outputPoint(TYPE dtype, const char name[32], const char *sensorType, double value, unsigned long int t){
+void outputPoint(TYPE dtype, const char name[32], const char sensorType[8], double value, unsigned long int t){
   DataPoint d;
   memset(&d, 0, sizeof(d));
   d.time = t;
@@ -253,7 +265,7 @@ void outputPoint(TYPE dtype, const char name[32], const char *sensorType, double
   writeDataPoint(&d);
 }
 
-size_t createEnvironmentData(const char *sensorType, unsigned long int t, double temp, double hum, double pres){
+size_t createEnvironmentData(const char sensorType[8], unsigned long int t, double temp, double hum, double pres){
   // pressure should be in hectopascals!!!
 
   memset(env, 0, sizeof(env));
@@ -296,7 +308,7 @@ size_t createEnvironmentData(const char *sensorType, unsigned long int t, double
 }
 
 
-size_t createEnvironmentData(const char *sensorType, unsigned long int t, double temp, double hum){ 
+size_t createEnvironmentData(const char sensorType[8], unsigned long int t, double temp, double hum){ 
   memset(env, 0, sizeof(env));
   size_t n = 0;
   
