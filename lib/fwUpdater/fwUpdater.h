@@ -2,8 +2,11 @@
 #include <Arduino.h>
 #include <ESP8266httpUpdate.h>
 #include <ESP8266WiFi.h>
-
+#ifdef ESP_DEEPSLEEP
+const char *fwVersionUrl = "http://xn--2xa.ink/files/deepsleep-firmware.bin.md5";
+#else
 const char *fwVersionUrl = "http://xn--2xa.ink/files/firmware.bin.md5";
+#endif
 const char *fwUrlSpr = "http://xn--2xa.ink/files/firmware/%s.bin";
 const char *fwCommandUrl = "http://xn--2xa.ink/files/firmware/%s.precmd";
   WiFiClient wifiClient;

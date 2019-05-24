@@ -109,9 +109,13 @@ int postMetric(const char *metric, const char sensorType[8]){
   #endif
     
     // http request
-    http.setTimeout(5000);
+    http.setTimeout(10000);
     http.begin(wifi, url);
     http.addHeader("Content-Type", "text/plain");
+    char contentLength[16];
+    sprintf(contentLength, "%d", strlen(metric));
+    http.addHeader("Content-Length", contentLength);
+    
     int httpCode = http.POST(metric);
     String payload = http.getString();
     
@@ -169,7 +173,7 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], co
   for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
   return;
 #endif
-  if (WiFi.status() != WL_CONNECTED) {
+  if (!WiFi.isConnected()) {
     for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
     return;
   }

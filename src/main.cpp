@@ -1,3 +1,5 @@
+// #define ESP_DEEPSLEEP true
+
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
 #include <Arduino.h>
 #include <Ticker.h>
@@ -58,10 +60,10 @@ void saveConfigCallback () {
 }
 
 void flashLed(){
-  int state = digitalRead(LED_BUILTIN);  // get the current state of GPIO1 pin
-  digitalWrite(LED_BUILTIN, !state);     // set pin to the opposite state
+  int state = digitalRead(D4);  // get the current state of GPIO1 pin
+  digitalWrite(D4, !state);     // set pin to the opposite state
 }
- 
+
 Ticker ticker;
 
 void reset(){
@@ -105,9 +107,10 @@ void setup() {
     delay(100);
   }
   pinMode(A0, INPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(0, INPUT_PULLUP); // aka D3 aka flash button
-  attachInterrupt(digitalPinToInterrupt(0), reset, FALLING); // attach interrupt
+  
+  pinMode(D4, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
+  pinMode(D3, INPUT_PULLUP); // aka D3 aka flash button
+  attachInterrupt(digitalPinToInterrupt(D3), reset, FALLING); // attach interrupt
   
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -117,6 +120,11 @@ void setup() {
   // SPIFFS.format();
   //read configuration from FS
   loadConfig(&cfg);
+
+
+  WiFiClient client;
+  client.setDefaultNoDelay(true);
+  client.setNoDelay(true);
 
   // The extra parameters to be configured (can be either global or just in the setup)
   // After connecting, parameter.getValue() will get you the configured value
@@ -128,6 +136,7 @@ void setup() {
   WiFiManagerParameter custom_influxdb_password("password", "password", cfg.influxdb_password, 32);
   WiFiManagerParameter custom_interval("interval", "interval", cfg.interval, 4);
   WiFiManagerParameter custom_location("location", "location", cfg.location, 16);
+
 
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
@@ -150,7 +159,7 @@ void setup() {
   //and goes into a blocking loop awaiting configuration
   char wifiName[17];
   
-  sprintf(wifiName, "Sensornet %06x", ESP.getChipId());
+  sprintf(wifiName, "Sensornet %06x\n", ESP.getChipId());
   Serial.printf("Wifi up on  %s", wifiName);
   //sets timeout until configuration portal gets turned off and esp gets reset.
   wifiManager.setTimeout(300);
@@ -282,6 +291,7 @@ void loop() {
       delta = sleepMicros;
     }
   #ifdef ESP_DEEPSLEEP
+    Serial.printf("DEEPSLEEP for %.2fs\n", (sleepMicros-delta)/1000000.0f);
     ESP.deepSleep(sleepMicros-delta);
   #else
     firstLoop = false;
@@ -291,6 +301,5 @@ void loop() {
     ticker.detach();
     ticker.attach(1.0, flashLed);
     delay(sleepTotal);
-    
   #endif
 }
