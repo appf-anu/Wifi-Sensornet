@@ -7,7 +7,7 @@
 
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
-OneWire oneWire(DALLASPIN);
+OneWire oneWire(ONE_WIRE_PIN);
 
 bool isValidDallas(float temperature){
   if (isnan(temperature)) return false;

@@ -13,7 +13,7 @@ bool isValidDHT22(float temperature, float humidity){
   return true;
 }
 
-DHT dht(DHTPIN, DHT22);
+DHT dht(ONE_WIRE_PIN, DHT22);
 bool readDHT(){
   unsigned long int t = timeClient.getEpochTime();
   dht.begin();

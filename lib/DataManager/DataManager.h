@@ -140,18 +140,17 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char sensorType
   if (strcmp(sensorAddr, "") != 0){
     sprintf(metric, "%s,sensorAddr=%s", metric, sensorAddr);
   }
-  strcat(metric, " ");
+  if (metric[strlen(metric)-2] != ' ') strcat(metric, " ");
   for (size_t x =0; x < num; x++){
-    
     switch ((d+x)->type){
       case INT:
         sprintf(metric, "%s%s=%di", metric, (d+x)->name, (int)(d+x)->value);
       break;
       case FLOAT:
-        sprintf(metric, "%s%s=%.5f", metric, (d+x)->name, (double)(d+x)->value);
+        sprintf(metric, "%s%s=%.6f", metric, (d+x)->name, (double)(d+x)->value);
         break;
       case DOUBLE:
-        sprintf(metric, "%s%s=%.5f", metric, (d+x)->name, (double)(d+x)->value);
+        sprintf(metric, "%s%s=%.6f", metric, (d+x)->name, (double)(d+x)->value);
         break;
       case BOOL:
         sprintf(metric, "%s%s=%s", metric, (d+x)->name, ((bool)(d+x)->value)?"true":"false");
@@ -220,17 +219,16 @@ int postDataPointToInfluxDB(DataPoint *d){
   if (strcmp(d->sensorAddress, "") != 0){
     sprintf(metric, "%s,sensorAddr=%s", metric, d->sensorType);
   }
-  
-  strcat(metric, " ");
+  if (metric[strlen(metric)-2] != ' ') strcat(metric, " ");
   switch (d->type){
     case INT:
-      sprintf(metric, "%s %s=%di %lu", metric, d->name, (int)d->value, d->time);
+      sprintf(metric, "%s%s=%di %lu", metric, d->name, (int)d->value, d->time);
     break;
     case FLOAT:
-      sprintf(metric, "%s %s=%.5f %lu", metric, d->name, (float)d->value, d->time);
+      sprintf(metric, "%s%s=%.6f %lu", metric, d->name, (float)d->value, d->time);
       break;
     case DOUBLE:
-      sprintf(metric, "%s %s=%.5f %lu", metric, d->name, (double)d->value, d->time);
+      sprintf(metric, "%s%s=%.6f %lu", metric, d->name, (double)d->value, d->time);
       break;
     case BOOL:
       sprintf(metric, "%s%s=%s", metric, d->name, ((bool)d->value)?"true":"false");

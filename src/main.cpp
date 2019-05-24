@@ -4,9 +4,8 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <ConfigManager.h>
-#include <ESP8266WiFi.h>
-#include <fwUpdater.h>
 
+#include <ESP8266WiFi.h>      //https://github.com/tzapu/WiFiManager
 #include <DNSServer.h>        //https://github.com/tzapu/WiFiManager
 #include <ESP8266WebServer.h> //https://github.com/tzapu/WiFiManager
 #include <WiFiManager.h>      //https://github.com/tzapu/WiFiManager
@@ -14,14 +13,14 @@
 #include <NTPClient.h>        //https://github.com/arduino-libraries/NTPClient
 #include <WiFiUdp.h>          //https://github.com/arduino-libraries/NTPClient
 
+#include <fwUpdater.h>
 // DEFINES
 #define DEBUG_POST false
 #define DEBUG_WIFI_CONNECTION false
-#define NO_STARTUP_UPDATE true
+#define NO_STARTUP_UPDATE false
 #define UPDATE_HOURS 2
 
-#define DHTPIN D5
-#define DALLASPIN D6
+#define ONE_WIRE_PIN D5
 #define SCL D1
 #define SDA D2
 
@@ -107,9 +106,9 @@ void setup() {
   }
   pinMode(A0, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(0, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(0), reset, FALLING);
-
+  pinMode(0, INPUT_PULLUP); // aka D3 aka flash button
+  attachInterrupt(digitalPinToInterrupt(0), reset, FALLING); // attach interrupt
+  
   // put your setup code here, to run once:
   Serial.begin(9600);
   Serial.println();
@@ -150,9 +149,10 @@ void setup() {
   //if it does not connect it starts an access point with the specified name
   //and goes into a blocking loop awaiting configuration
   char wifiName[17];
-  Serial.printf("Begin %06x\n", ESP.getChipId());
+  
   sprintf(wifiName, "Sensornet %06x", ESP.getChipId());
-  //sets timeout until configuration portal gets turned off
+  Serial.printf("Wifi up on  %s", wifiName);
+  //sets timeout until configuration portal gets turned off and esp gets reset.
   wifiManager.setTimeout(300);
   if (!wifiManager.autoConnect(wifiName)) {
     Serial.println("failed to connect and hit timeout");
@@ -164,8 +164,6 @@ void setup() {
   WiFi.setAutoReconnect(true);
   //if you get here you have connected to the WiFi
   Serial.println("connected...yeey :)");
-
-
   
   //read updated parameters
   strcpy(cfg.influxdb_server, custom_influxdb_server.getValue());
