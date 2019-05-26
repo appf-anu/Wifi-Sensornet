@@ -2,8 +2,8 @@
 #include <DallasTemperature.h> // https://github.com/milesburton/Arduino-Temperature-Control-Library
 
 #define MAX_TRIES 5
-#define DALLAS_MAX_TEMP 125
-#define DALLAS_MIN_TEMP -40
+#define DALLAS_MAX_TEMP 84
+#define DALLAS_MIN_TEMP -10
 
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
@@ -18,8 +18,7 @@ bool isValidDallas(float temperature){
 // Pass our oneWire reference to Dallas Temperature. 
 DallasTemperature sensors(&oneWire);
 DeviceAddress addr;
-bool readDallas(){
-  bool failed = false;
+void readDallas(){
   sensors.begin();
   Serial.println("Read From dallas");
   sensors.requestTemperatures();
@@ -29,24 +28,22 @@ bool readDallas(){
     
     if (!sensors.getAddress(addr, x)) {
       Serial.printf("Unable to get device address for device %d/%d\n", x, numSensors);
-      failed = true;
       continue;
     }
-    // set resolution to 9 bits
-    sensors.setResolution(addr, 9);
+    // set resolution to 11 bits
+    sensors.setResolution(addr, 11);
     // get the address as hex
     sprintf(addrHex, "%016X", (unsigned int)addr);
-    float temp = sensors.getTempC(addr);
-
-    if (temp == DEVICE_DISCONNECTED_C){
-      Serial.printf("Couldn't get temperature data for device %d/%d\n", x, numSensors);
-      failed = true;
-      continue;
-    }
+    float temp;
+    size_t tries = 0;
+    do {
+      temp = sensors.getTempC(addr);
+      Serial.printf("Attempted to get temperature from Dallas %d/%d, got %.6f\n", x, numSensors, temp);
+    } while (tries < MAX_TRIES && !isValidDallas(temp) && temp == DEVICE_DISCONNECTED_C);
+    
+    if (tries >= MAX_TRIES) continue;
 
     DataPoint d = createDataPoint(FLOAT, "temperature", "dallas", addrHex, temp);
     postDataPointToInfluxDB(&d);
   }
-
-  return !failed;
 }

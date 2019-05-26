@@ -30,10 +30,7 @@ bool readDHT(){
     delay(100);
   } while (tries++ < MAX_TRIES && !isValidDHT22(temp, hum));
   if (tries >= MAX_TRIES) return false;
-
-  if (isnan(temp) || isnan(hum)){
-    return false;
-  }
+  
   DataPoint dps[2];
   
   

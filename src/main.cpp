@@ -121,10 +121,10 @@ void setup() {
   //read configuration from FS
   loadConfig(&cfg);
 
-
-  WiFiClient client;
-  client.setDefaultNoDelay(true);
-  client.setNoDelay(true);
+  // not sure if this is causing weird reboots.
+  // WiFiClient client;
+  // client.setDefaultNoDelay(true);
+  // client.setNoDelay(true);
 
   // The extra parameters to be configured (can be either global or just in the setup)
   // After connecting, parameter.getValue() will get you the configured value
@@ -136,7 +136,6 @@ void setup() {
   WiFiManagerParameter custom_influxdb_password("password", "password", cfg.influxdb_password, 32);
   WiFiManagerParameter custom_interval("interval", "interval", cfg.interval, 4);
   WiFiManagerParameter custom_location("location", "location", cfg.location, 16);
-
 
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
@@ -166,8 +165,8 @@ void setup() {
   if (!wifiManager.autoConnect(wifiName)) {
     Serial.println("failed to connect and hit timeout");
     delay(3000);
-    //reset and try again, or maybe put it to deep sleep
-    ESP.reset();
+    // restart and try again, or maybe put it to deep sleep
+    ESP.restart();
     delay(5000);
   }
   WiFi.setAutoReconnect(true);
