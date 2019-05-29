@@ -91,8 +91,9 @@ void checkForUpdates() {
     char fwUrl[256];
     sprintf(fwUrl, fwUrlSpr, newFWVersion);
     Serial.printf( "Preparing to update from %s\n", fwUrl);
+    Serial.end();
     t_httpUpdate_return ret = ESPhttpUpdate.update( wifiClient, fwUrl );
-
+    Serial.begin(115200);
     switch(ret) {
       case HTTP_UPDATE_OK:
         Serial.println("HTTP_UPDATE_OK");

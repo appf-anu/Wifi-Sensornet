@@ -1,6 +1,4 @@
-// #define ESP_DEEPSLEEP true
-
-
+// // #define ESP_DEEPSLEEP true
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
 #include <Arduino.h>
 #include <Ticker.h>
@@ -30,7 +28,6 @@
 #define ALTITUDECONSTANT 577.0f
 
 ADC_MODE(ADC_VCC);
-
 
 // You can specify the time server pool and the offset (in seconds, can be
 // changed later with setTimeOffset() ). Additionaly you can specify the
@@ -69,7 +66,8 @@ void flashLed(){
 
 Ticker ticker;
 
-void reset(){
+// this needs to have this see https://github.com/esp8266/Arduino/issues/4468
+void ICACHE_RAM_ATTR reset(){
   flashButtonCounter++;
   
   // need to mash the flash button
@@ -113,10 +111,10 @@ void setup() {
   
   pinMode(D4, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
   pinMode(D3, INPUT_PULLUP); // aka D3 aka flash button
-  attachInterrupt(digitalPinToInterrupt(D3), reset, FALLING); // attach interrupt
+  attachInterrupt(D3, reset, FALLING); // attach interrupt
   
   // put your setup code here, to run once:
-  Serial.begin(9600);
+  Serial.begin(112500);
   Serial.println();
 
   //clean FS, for testing
