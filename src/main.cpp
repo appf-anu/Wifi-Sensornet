@@ -13,7 +13,7 @@
 
 #include <NTPClient.h>        //https://github.com/arduino-libraries/NTPClient
 #include <WiFiUdp.h>          //https://github.com/arduino-libraries/NTPClient
-unsigned int clientErrors = 0;
+
 #include <fwUpdater.h>
 // DEFINES
 #define DEBUG_POST false
@@ -217,7 +217,6 @@ void setup() {
 double lastLoopTime = 0;
 bool firstLoop = true; 
 void loop() {
-  clientErrors = 0;
   flashButtonCounter = 0;
   ticker.detach();
   ticker.attach(0.05, flashLed);
@@ -294,10 +293,6 @@ void loop() {
       Serial.printf("fully uploaded %db. Removing /data.dat\n", fileSize);
       SPIFFS.remove("/data.dat");
     }
-  }
-  if (clientErrors > 0){
-    ESP.restart();
-    delay(5000);
   }
   unsigned long delta = micros() - startMicros;
   if(delta >= sleepMicros) delta = sleepMicros;

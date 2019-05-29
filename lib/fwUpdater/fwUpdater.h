@@ -23,7 +23,6 @@ void runPreCmd(const char *newFWVersion){
   httpClient.begin(preCmdUrl);
   
   int httpCode = httpClient.GET();
-  if(httpCode == -1) clientErrors++;
   if (httpCode == 404) {
     Serial.println("no precmds");
     httpClient.end();
@@ -71,7 +70,6 @@ void checkForUpdates() {
   httpClient.begin( fwVersionUrl );
   
   int httpCode = httpClient.GET();
-  if(httpCode == -1) clientErrors++;
   if( httpCode != 200 ) {
     Serial.printf( "Firmware version check failed, got HTTP response code %d\n" , httpCode);
     httpClient.end();

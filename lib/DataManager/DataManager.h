@@ -119,7 +119,7 @@ int postMetric(const char *metric, const char sensorType[8]){
     String payload = httpClient.getString();
     
     Serial.printf("POST %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
-    if(httpCode == -1) clientErrors++;
+    
     if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
       Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
       Serial.println(metric);
