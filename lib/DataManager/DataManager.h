@@ -106,9 +106,8 @@ int postMetric(const char *metric, const char sensorType[8]){
     // WiFiClient wifiClient;
     HTTPClient httpClient;
     // http request
-
     httpClient.setTimeout(1000);
-    
+    httpClient.setReuse(true);
     // old method for ESP8266
     httpClient.begin(url);
     httpClient.addHeader("Content-Type", "text/plain");
