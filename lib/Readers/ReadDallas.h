@@ -1,7 +1,7 @@
 #include <OneWire.h>           // https://github.com/milesburton/Arduino-Temperature-Control-Library
 #include <DallasTemperature.h> // https://github.com/milesburton/Arduino-Temperature-Control-Library
 
-#define MAX_TRIES 5
+#define MAX_TRIES 20
 #define DALLAS_MAX_TEMP 84
 #define DALLAS_MIN_TEMP -10
 
@@ -39,8 +39,9 @@ void readDallas(){
     size_t tries = 0;
     do {
       temp = sensors.getTempC(addr);
-      Serial.printf("Attempted to get temperature from Dallas %d/%d, got %.6f\n", x, numSensors, temp);
-    } while (tries < MAX_TRIES && !isValidDallas(temp));
+      Serial.printf("Attempted to get temperature from Dallas %d/%d, got %.6f\n", x+1, numSensors, temp);
+      delay(50);
+    } while (tries++ < MAX_TRIES && !isValidDallas(temp));
     
     if (tries >= MAX_TRIES) continue;
 

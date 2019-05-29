@@ -1,4 +1,4 @@
-// // #define ESP_DEEPSLEEP true
+#define ESP_DEEPSLEEP true
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
 #include <Arduino.h>
 #include <Ticker.h>
@@ -21,13 +21,15 @@
 #define NO_STARTUP_UPDATE false
 #define UPDATE_HOURS 2
 
-#define ONE_WIRE_PIN D5
-#define SCL D1
-#define SDA D2
+
+#define ONE_WIRE_PIN 14
+#define SCL 5
+#define SDA 4
 
 #define ALTITUDECONSTANT 577.0f
 
 ADC_MODE(ADC_VCC);
+unsigned long startMicros;
 
 // You can specify the time server pool and the offset (in seconds, can be
 // changed later with setTimeOffset() ). Additionaly you can specify the
@@ -61,8 +63,8 @@ void saveConfigCallback () {
 bool flashState = false;
 void flashLed(){
   // lets not flash anything 
-  // flashState = !flashState;
-  // digitalWrite(D4, flashState);
+  flashState = !flashState;
+  digitalWrite(2, flashState);
 }
 
 Ticker ticker;
@@ -103,16 +105,19 @@ void ICACHE_RAM_ATTR reset(){
 }
 
 void setup() {
+
+  startMicros = micros();
   Serial.println("mounting FS...");
   while (!SPIFFS.begin()) {
     Serial.println("failed to mount FS");
     delay(100);
   }
   pinMode(A0, INPUT);
+
   
-  // pinMode(D4, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
-  pinMode(D3, INPUT_PULLUP); // aka D3 aka flash button
-  attachInterrupt(D3, reset, FALLING); // attach interrupt
+  pinMode(2, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
+  pinMode(0, INPUT_PULLUP); // aka D3 aka flash button
+  attachInterrupt(0, reset, FALLING); // attach interrupt
   
   // put your setup code here, to run once:
   Serial.begin(112500);
@@ -198,10 +203,9 @@ void setup() {
   timeClient.forceUpdate();
   Wire.setClockStretchLimit(2500);
   // i2c:   sda,scl
-  // nodemcu D6,D7
-  // esp8266 12,13
+  // 4, 5
   // D2,D1
-  Wire.begin(4,5);
+  Wire.begin(SDA,SCL);
   sleepMinutes = atoi(cfg.interval);
   sleepMicros  = sleepMinutes*6e+7;
 #if ((!DEBUG_POST) && (!DEBUG_WIFI_CONNECTION) && (!NO_STARTUP_UPDATE))
@@ -217,12 +221,14 @@ void setup() {
 double lastLoopTime = 0;
 bool firstLoop = true; 
 void loop() {
+#ifndef ESP_DEEPSLEEP
+  startMicros = micros();
+#endif
 
   flashButtonCounter = 0;
   ticker.detach();
   ticker.attach(0.05, flashLed);
-  unsigned long startMicros = micros();
-  
+
   // run update on second loop (tick+1)
   if (otaCounter % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
     checkForUpdates();
