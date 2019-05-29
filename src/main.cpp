@@ -13,7 +13,7 @@
 
 #include <NTPClient.h>        //https://github.com/arduino-libraries/NTPClient
 #include <WiFiUdp.h>          //https://github.com/arduino-libraries/NTPClient
-
+unsigned int clientErrors = 0;
 #include <fwUpdater.h>
 // DEFINES
 #define DEBUG_POST false
@@ -35,7 +35,7 @@ ADC_MODE(ADC_VCC);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "au.pool.ntp.org", 0);
 struct Config cfg;
-static uint32_t otaInterval = 1;
+static uint32_t otaCounter = 1;
 bool shouldSaveConfig = false;
 unsigned int sleepMinutes;
 unsigned long sleepMicros;
@@ -58,10 +58,11 @@ void saveConfigCallback () {
   shouldSaveConfig = true;
 }
 
+bool flashState = false;
 void flashLed(){
-  // it seems that using either of the leds causes problems with the wifi
-  // int state = digitalRead(D4);  // get the current state of GPIO1 pin
-  // digitalWrite(D4, !state);     // set pin to the opposite state
+  // lets not flash anything 
+  // flashState = !flashState;
+  // digitalWrite(D4, flashState);
 }
 
 Ticker ticker;
@@ -77,7 +78,7 @@ void ICACHE_RAM_ATTR reset(){
   }
   
   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
-  otaInterval = 0; // reset the ota interval
+  otaCounter = 0; // reset the ota interval
   
   // need to mash the flash button
   if (flashButtonCounter < 10) {
@@ -109,7 +110,7 @@ void setup() {
   }
   pinMode(A0, INPUT);
   
-  pinMode(D4, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
+  // pinMode(D4, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
   pinMode(D3, INPUT_PULLUP); // aka D3 aka flash button
   attachInterrupt(D3, reset, FALLING); // attach interrupt
   
@@ -121,7 +122,6 @@ void setup() {
   // SPIFFS.format();
   //read configuration from FS
   loadConfig(&cfg);
-
   // not sure if this is causing weird reboots.
   // WiFiClient client;
   // client.setDefaultNoDelay(true);
@@ -213,20 +213,23 @@ void setup() {
 
 }
 
+
 double lastLoopTime = 0;
 bool firstLoop = true; 
 void loop() {
+  clientErrors = 0;
+  flashButtonCounter = 0;
   ticker.detach();
   ticker.attach(0.05, flashLed);
   unsigned long startMicros = micros();
   
   // run update on second loop (tick+1)
-  if (otaInterval % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
+  if (otaCounter % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
     checkForUpdates();
   }else{
-    Serial.printf("Not time for update %d/%d\n", otaInterval, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
+    Serial.printf("Not time for update %d/%d\n", otaCounter, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
   }
-  otaInterval ++;  
+  otaCounter ++;  
   for (byte address = 1; address < 127; address++){
     Wire.beginTransmission(address);
     if (Wire.endTransmission() == 0){
@@ -261,7 +264,8 @@ void loop() {
     File f = SPIFFS.open("/data.dat", "r");
     size_t fileSize = f.size();
     f.close();
-    while ((readPos = readDataPoint(&d, readPos)) != 0) {
+    while ((readPos = readDataPoint(&d, readPos)) != 0 && !failedWrite) {
+      
       if (d.time == 0 || strcmp(d.name, "") == 0){
         Serial.println("breaking");
         break;
@@ -282,15 +286,21 @@ void loop() {
       }
       size_t tries = 0;
       do {
-        delay(100);
+        delay(30);
       } while(tries++ < 3 && !postDataPointToInfluxDB(&d));
+      if (tries >= 3) failedWrite = true;
     }
-    if(!failedWrite) SPIFFS.remove("/data.dat");
+    if(!failedWrite){
+      Serial.printf("fully uploaded %db. Removing /data.dat\n", fileSize);
+      SPIFFS.remove("/data.dat");
+    }
+  }
+  if (clientErrors > 0){
+    ESP.restart();
+    delay(5000);
   }
   unsigned long delta = micros() - startMicros;
-  if(delta >= sleepMicros){
-      delta = sleepMicros;
-    }
+  if(delta >= sleepMicros) delta = sleepMicros;
   #ifdef ESP_DEEPSLEEP
     Serial.printf("DEEPSLEEP for %.2fs\n", (sleepMicros-delta)/1000000.0f);
     ESP.deepSleep(sleepMicros-delta);

@@ -1,6 +1,7 @@
 #include <FS.h>
 #include <Arduino.h>
-#include <ESP8266HTTPClient.h> 
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
 #include <EnvironmentCalculations.h>  //https://github.com/finitespace/BME280
 
 typedef enum {
@@ -89,18 +90,6 @@ DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType
   return createDataPoint(dtype, name, sensorType, value, timeClient.getEpochTime());
 }
 
-void printIPAddressOfHost(const char* host) {
-  IPAddress resolvedIP;
-  if (!WiFi.hostByName(host, resolvedIP)) {
-    Serial.println("DNS lookup failed.  Rebooting...");
-    Serial.flush();
-    ESP.reset();
-  }
-  Serial.print(host);
-  Serial.print(" IP: ");
-  Serial.println(resolvedIP);
-}
-
 int postMetric(const char *metric, const char sensorType[8]){
   char url[256];
   memset(url, 0, sizeof(url));
@@ -114,11 +103,11 @@ int postMetric(const char *metric, const char sensorType[8]){
     Serial.println(metric);
     return 1;
   #endif
+    // WiFiClient wifiClient;
     HTTPClient httpClient;
     // http request
+
     httpClient.setTimeout(1000);
-    // without setReuse it will close the wifi client. DO NOT REMOVE
-    // httpClient.setReuse(true);
     
     // old method for ESP8266
     httpClient.begin(url);
@@ -131,10 +120,10 @@ int postMetric(const char *metric, const char sensorType[8]){
     String payload = httpClient.getString();
     
     Serial.printf("POST %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
+    if(httpCode == -1) clientErrors++;
     if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
       Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
       Serial.println(metric);
-      printIPAddressOfHost(cfg.influxdb_server);
     }
     httpClient.end();
     return (httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK);
@@ -194,7 +183,7 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], co
     if (postBulkDataPointsToInfluxdb(d, num, sensorType, sensorAddr, t)){  
       return;
     }
-    delay(100); // sleep a second so as not to hammer the server.
+    delay(100); // sleep a bit so as not to hammer the server.
   }
 
   for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
