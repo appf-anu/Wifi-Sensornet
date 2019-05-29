@@ -65,9 +65,9 @@ void runPreCmd(const char *newFWVersion){
 void checkForUpdates() {
   String fwVersionUrlStr = String(fwVersionUrl);
   Serial.println( "Checking for firmware updates." );
-  // WiFiClient wifiClient;
+  WiFiClient wifiClient;
   HTTPClient httpClient;
-  httpClient.begin( fwVersionUrl );
+  httpClient.begin( wifiClient, fwVersionUrl );
   
   int httpCode = httpClient.GET();
   if( httpCode != 200 ) {
@@ -86,6 +86,8 @@ void checkForUpdates() {
   Serial.printf( "Current firmware md5:   \t%s\n", curFWVersion);
   Serial.printf( "Available firmware md5: \t%s\n", newFWVersion);
   
+
+
   if( strstr(newFWVersion, curFWVersion) == NULL) {
     runPreCmd(newFWVersion);
     delay(1000);
@@ -96,7 +98,8 @@ void checkForUpdates() {
     Serial.end();
     delay(1000);
     // using ESPHttpUpdate.update( wifiClient, fwUrl ) closes wifiClient.
-    t_httpUpdate_return ret = ESPhttpUpdate.update( fwUrl );
+    WiFiClient wifiClient2;
+    t_httpUpdate_return ret = ESPhttpUpdate.update( wifiClient2, fwUrl );
     Serial.begin(115200);
     switch(ret) {
       case HTTP_UPDATE_OK:

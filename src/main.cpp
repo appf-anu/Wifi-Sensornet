@@ -217,6 +217,7 @@ void setup() {
 double lastLoopTime = 0;
 bool firstLoop = true; 
 void loop() {
+
   flashButtonCounter = 0;
   ticker.detach();
   ticker.attach(0.05, flashLed);
@@ -285,7 +286,7 @@ void loop() {
       }
       size_t tries = 0;
       do {
-        delay(30);
+        delay(50);
       } while(tries++ < 3 && !postDataPointToInfluxDB(&d));
       if (tries >= 3) failedWrite = true;
     }

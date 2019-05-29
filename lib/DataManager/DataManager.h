@@ -1,7 +1,6 @@
 #include <FS.h>
 #include <Arduino.h>
 #include <ESP8266HTTPClient.h>
-#include <WiFiClient.h>
 #include <EnvironmentCalculations.h>  //https://github.com/finitespace/BME280
 
 typedef enum {
@@ -20,6 +19,7 @@ struct DataPoint
     double value;
     TYPE type;
 };
+
 
 DataPoint env[9];
 
@@ -43,7 +43,7 @@ int writeDataPoint(DataPoint *d){
         Serial.printf("[]<- %lu %s %s\n", d->time, d->name, ((bool)d->value)?"true":"false");
         break;
     } 
-    delay(20);
+    delay(40);
     return 0;
 }
 
@@ -90,6 +90,8 @@ DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType
   return createDataPoint(dtype, name, sensorType, value, timeClient.getEpochTime());
 }
 
+HTTPClient httpClient;
+
 int postMetric(const char *metric, const char sensorType[8]){
   char url[256];
   memset(url, 0, sizeof(url));
@@ -103,24 +105,15 @@ int postMetric(const char *metric, const char sensorType[8]){
     Serial.println(metric);
     return 1;
   #endif
-    // WiFiClient wifiClient;
-    HTTPClient httpClient;
+    WiFiClient wifiClient;
     // http request
-    httpClient.setTimeout(1000);
-    httpClient.setReuse(true);
-    // old method for ESP8266
-    httpClient.begin(url);
-    httpClient.addHeader("Content-Type", "text/plain");
-    char contentLength[16];
-    sprintf(contentLength, "%d", strlen(metric));
-    httpClient.addHeader("Content-Length", contentLength);
-    
+    httpClient.begin(wifiClient, url);
     int httpCode = httpClient.POST(metric);
-    String payload = httpClient.getString();
-    
+
     Serial.printf("POST %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
     
     if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
+      String payload = httpClient.getString();
       Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
       Serial.println(metric);
     }
