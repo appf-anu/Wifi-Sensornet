@@ -11,6 +11,7 @@ OneWire oneWire(ONE_WIRE_PIN);
 
 bool isValidDallas(float temperature){
   if (isnan(temperature)) return false;
+  if (temperature == DEVICE_DISCONNECTED_C) return false;
   if (temperature < DALLAS_MIN_TEMP || temperature > DALLAS_MAX_TEMP) return false;
   return true;
 }
@@ -39,7 +40,7 @@ void readDallas(){
     do {
       temp = sensors.getTempC(addr);
       Serial.printf("Attempted to get temperature from Dallas %d/%d, got %.6f\n", x, numSensors, temp);
-    } while (tries < MAX_TRIES && !isValidDallas(temp) && temp == DEVICE_DISCONNECTED_C);
+    } while (tries < MAX_TRIES && !isValidDallas(temp));
     
     if (tries >= MAX_TRIES) continue;
 

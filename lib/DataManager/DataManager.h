@@ -1,12 +1,7 @@
 #include <FS.h>
 #include <Arduino.h>
-#include <ESP8266HTTPClient.h>
-#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h> 
 #include <EnvironmentCalculations.h>  //https://github.com/finitespace/BME280
-
-WiFiClient wifi;
-HTTPClient http;
-
 
 typedef enum {
     INT,
@@ -94,6 +89,18 @@ DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType
   return createDataPoint(dtype, name, sensorType, value, timeClient.getEpochTime());
 }
 
+void printIPAddressOfHost(const char* host) {
+  IPAddress resolvedIP;
+  if (!WiFi.hostByName(host, resolvedIP)) {
+    Serial.println("DNS lookup failed.  Rebooting...");
+    Serial.flush();
+    ESP.reset();
+  }
+  Serial.print(host);
+  Serial.print(" IP: ");
+  Serial.println(resolvedIP);
+}
+
 int postMetric(const char *metric, const char sensorType[8]){
   char url[256];
   memset(url, 0, sizeof(url));
@@ -102,29 +109,34 @@ int postMetric(const char *metric, const char sensorType[8]){
     cfg.influxdb_db, 
     cfg.influxdb_user, 
     cfg.influxdb_password);
-
+  
   #if DEBUG_POST 
     Serial.println(metric);
     return 1;
   #endif
-    
+    HTTPClient httpClient;
     // http request
-    http.setTimeout(10000);
-    http.begin(wifi, url);
-    http.addHeader("Content-Type", "text/plain");
+    httpClient.setTimeout(1000);
+    // without setReuse it will close the wifi client. DO NOT REMOVE
+    // httpClient.setReuse(true);
+    
+    // old method for ESP8266
+    httpClient.begin(url);
+    httpClient.addHeader("Content-Type", "text/plain");
     char contentLength[16];
     sprintf(contentLength, "%d", strlen(metric));
-    http.addHeader("Content-Length", contentLength);
+    httpClient.addHeader("Content-Length", contentLength);
     
-    int httpCode = http.POST(metric);
-    String payload = http.getString();
+    int httpCode = httpClient.POST(metric);
+    String payload = httpClient.getString();
     
     Serial.printf("POST %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
     if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
-      Serial.println(metric);
       Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
+      Serial.println(metric);
+      printIPAddressOfHost(cfg.influxdb_server);
     }
-    http.end();
+    httpClient.end();
     return (httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK);
 }
 
@@ -182,7 +194,7 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], co
     if (postBulkDataPointsToInfluxdb(d, num, sensorType, sensorAddr, t)){  
       return;
     }
-    delay(1000); // sleep a second so as not to hammer the server.
+    delay(100); // sleep a second so as not to hammer the server.
   }
 
   for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
@@ -262,7 +274,7 @@ void outputPoint(TYPE dtype, const char name[32], const char sensorType[8], doub
     if (postDataPointToInfluxDB(&d)){
       return;
     }
-    delay(1000); // sleep a second so as not to hammer the server.
+    delay(100); // sleep a second so as not to hammer the server.
   }
   writeDataPoint(&d);
 }

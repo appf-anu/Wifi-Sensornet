@@ -1,5 +1,6 @@
 // #define ESP_DEEPSLEEP true
 
+
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
 #include <Arduino.h>
 #include <Ticker.h>
@@ -29,6 +30,7 @@
 #define ALTITUDECONSTANT 577.0f
 
 ADC_MODE(ADC_VCC);
+
 
 // You can specify the time server pool and the offset (in seconds, can be
 // changed later with setTimeOffset() ). Additionaly you can specify the
@@ -60,8 +62,9 @@ void saveConfigCallback () {
 }
 
 void flashLed(){
-  int state = digitalRead(D4);  // get the current state of GPIO1 pin
-  digitalWrite(D4, !state);     // set pin to the opposite state
+  // it seems that using either of the leds causes problems with the wifi
+  // int state = digitalRead(D4);  // get the current state of GPIO1 pin
+  // digitalWrite(D4, !state);     // set pin to the opposite state
 }
 
 Ticker ticker;
@@ -125,6 +128,7 @@ void setup() {
   // WiFiClient client;
   // client.setDefaultNoDelay(true);
   // client.setNoDelay(true);
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
   // The extra parameters to be configured (can be either global or just in the setup)
   // After connecting, parameter.getValue() will get you the configured value

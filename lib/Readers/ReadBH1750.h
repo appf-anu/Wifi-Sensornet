@@ -32,6 +32,5 @@ void readBH1750(byte address){
     outputPoint(FLOAT, "PPFDDualEndedHighPressureSodium","bh1750", lux*PPFD_CALIBRATION_DEHPS);
     outputPoint(FLOAT, "PPFDCeramicMetalHalide4200k","bh1750", lux*PPFD_CALIBRATION_CMH942);
     outputPoint(FLOAT, "PPFDCeramicMetalHalide3100k","bh1750", lux*PPFD_CALIBRATION_CMH930);
-#endif
-    
+#endif   
 }

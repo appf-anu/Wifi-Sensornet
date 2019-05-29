@@ -56,7 +56,7 @@ bool readChirp(){
   dps[1] = createDataPoint(FLOAT, "soilTemperature", "chirp", soilTemperature, t);
 
   bulkOutputDataPoints(dps, 2, "chirp", t);
-  
-  chirpSensor.sleep();
+  // this breaks other i2c devices.
+  // chirpSensor.sleep();
   return true;
 }
