@@ -4,11 +4,14 @@
 #include <ESP8266HTTPClient.h> 
 #include <WiFiClient.h>
 
-#ifdef ESP_DEEPSLEEP
-const char *fwVersionUrl = "http://xn--2xa.ink/files/deepsleep-firmware.bin.md5";
+#ifdef ARDUINO_ESP8266_NODEMCU
+const char *fwVersionUrl = "http://xn--2xa.ink/files/nodemcuv2.bin.md5";
+#elif defined ARDUINO_ESP8266_ESP12
+const char *fwVersionUrl = "http://xn--2xa.ink/files/esp12e.bin.md5";
 #else
 const char *fwVersionUrl = "http://xn--2xa.ink/files/firmware.bin.md5";
 #endif
+
 const char *fwUrlSpr = "http://xn--2xa.ink/files/firmware/%s.bin";
 const char *fwCommandUrl = "http://xn--2xa.ink/files/firmware/%s.precmd";
 
@@ -44,7 +47,7 @@ void runPreCmd(const char *newFWVersion){
     bool SPIFFS_began = false;
     while (!SPIFFS_began && tries < 3){
       SPIFFS_began = SPIFFS.begin();
-      tries++;
+      tries++;                         
     }
     if (SPIFFS_began){
       bool removed = SPIFFS.remove("/data.dat");
@@ -64,7 +67,7 @@ void runPreCmd(const char *newFWVersion){
 
 void checkForUpdates() {
   String fwVersionUrlStr = String(fwVersionUrl);
-  Serial.println( "Checking for firmware updates." );
+  Serial.printf( "Checking for firmware updates at %s\n", fwVersionUrl);
   WiFiClient wifiClient;
   HTTPClient httpClient;
   httpClient.begin( wifiClient, fwVersionUrl );
@@ -100,7 +103,7 @@ void checkForUpdates() {
     // using ESPHttpUpdate.update( wifiClient, fwUrl ) closes wifiClient.
     WiFiClient wifiClient2;
     t_httpUpdate_return ret = ESPhttpUpdate.update( wifiClient2, fwUrl );
-    Serial.begin(115200);
+    Serial.begin(9600);
     switch(ret) {
       case HTTP_UPDATE_OK:
         Serial.println("HTTP_UPDATE_OK");

@@ -1,4 +1,4 @@
-#define ESP_DEEPSLEEP true
+// #define ESP_DEEPSLEEP true
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
 #include <Arduino.h>
 #include <Ticker.h>
@@ -22,10 +22,16 @@
 #define UPDATE_HOURS 2
 
 
-#define ONE_WIRE_PIN 14
-#define SCL 5
-#define SDA 4
-
+#if defined ARDUINO_ESP8266_NODEMCU
+  #define ONE_WIRE_PIN D5
+  #define SCL D1
+  #define SDA D2
+#else
+  #define ESP_DEEPSLEEP
+  #define ONE_WIRE_PIN 14
+  #define SCL 5
+  #define SDA 4
+#endif
 #define ALTITUDECONSTANT 577.0f
 
 ADC_MODE(ADC_VCC);
@@ -120,7 +126,7 @@ void setup() {
   attachInterrupt(0, reset, FALLING); // attach interrupt
   
   // put your setup code here, to run once:
-  Serial.begin(112500);
+  Serial.begin(9600);
   Serial.println();
 
   //clean FS, for testing
@@ -168,7 +174,12 @@ void setup() {
   sprintf(wifiName, "Sensornet %06x\n", ESP.getChipId());
   Serial.printf("Wifi up on  %s", wifiName);
   //sets timeout until configuration portal gets turned off and esp gets reset.
+#ifdef ESP_DEEPSLEEP
+  wifiManager.setTimeout(60);
+#else
   wifiManager.setTimeout(300);
+#endif
+
   if (!wifiManager.autoConnect(wifiName)) {
     Serial.println("failed to connect and hit timeout");
     delay(3000);
@@ -214,7 +225,6 @@ void setup() {
   Serial.println("NOT UPDATING ON BOOT!");
   Serial.printf("Sketch md5: %s\n", ESP.getSketchMD5().c_str());
 #endif
-
 }
 
 
