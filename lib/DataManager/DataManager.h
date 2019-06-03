@@ -3,6 +3,14 @@
 #include <ESP8266HTTPClient.h>
 #include <EnvironmentCalculations.h>  //https://github.com/finitespace/BME280
 
+#ifdef ARDUINO_ESP8266_NODEMCU
+const char *platform = "nodemcuv2";
+#elif defined ARDUINO_ESP8266_ESP12
+const char *platform = "esp12e";
+#else
+const char *platform = "unknown";
+#endif
+
 typedef enum {
     INT,
     FLOAT,
@@ -128,8 +136,8 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char sensorType
   String sketchmd5 = ESP.getSketchMD5();
   
   strcpy(metric, "sensornode");
-  sprintf(metric, "%s,chipid=%06X,sketchmd5=%s,location=%s",
-          metric, 
+  sprintf(metric, "%s,platform=%s,chipid=%06X,sketchmd5=%s,location=%s",
+          metric, platform,
           chipId, sketchmd5.c_str(), cfg.location);
   if (strcmp(sensorType, "") != 0){
     sprintf(metric, "%s,sensorType=%s", metric, sensorType);
@@ -206,8 +214,8 @@ int postDataPointToInfluxDB(DataPoint *d){
   String sketchmd5 = ESP.getSketchMD5();
   
   strcpy(metric, "sensornode");
-  sprintf(metric, "%s,chipid=%06X,sketchmd5=%s,location=%s",
-          metric, 
+  sprintf(metric, "%s,platform=%s,chipid=%06X,sketchmd5=%s,location=%s",
+          metric, platform,
           chipId, sketchmd5.c_str(), cfg.location);
   
   if (strcmp(d->sensorType, "") != 0){
