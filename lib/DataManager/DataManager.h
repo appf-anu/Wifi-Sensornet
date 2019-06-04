@@ -90,14 +90,6 @@ DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType
   return createDataPoint(dtype, name, sensorType, "", value, t);
 }
 
-DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], const char sensorAddress[16], double value){
-  return createDataPoint(dtype, name, sensorType, sensorAddress, value, timeClient.getEpochTime());
-}
-
-DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], double value){
-  return createDataPoint(dtype, name, sensorType, value, timeClient.getEpochTime());
-}
-
 HTTPClient httpClient;
 
 int postMetric(const char *metric, const char sensorType[8]){
@@ -191,14 +183,6 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], co
 
 void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], unsigned long t){
   bulkOutputDataPoints(d, num, sensorType, "", t);
-}
-
-void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], const char *sensorAddr){
-  bulkOutputDataPoints(d, num, sensorType, sensorAddr, timeClient.getEpochTime());
-}
-
-void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8]){
-  bulkOutputDataPoints(d, num, sensorType, "");
 }
 
 int postDataPointToInfluxDB(DataPoint *d){

@@ -19,7 +19,7 @@ bool isValidDallas(float temperature){
 // Pass our oneWire reference to Dallas Temperature. 
 DallasTemperature sensors(&oneWire);
 DeviceAddress addr;
-void readDallas(){
+void readDallas(unsigned long int t){
   sensors.begin();
   Serial.println("Read From dallas");
   sensors.requestTemperatures();
@@ -45,7 +45,7 @@ void readDallas(){
     
     if (tries >= MAX_TRIES) continue;
 
-    DataPoint d = createDataPoint(FLOAT, "temperature", "dallas", addrHex, temp);
+    DataPoint d = createDataPoint(FLOAT, "temperature", "dallas", addrHex, temp, t);
     postDataPointToInfluxDB(&d);
   }
 }

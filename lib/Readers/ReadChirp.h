@@ -20,9 +20,8 @@ bool isValidChirp(unsigned int soilCapacitance, float soilTemperature){
   return true;
 }
 
-bool readChirp(){
+bool readChirp(unsigned long int t){
   // chirp soil moisture sensor is address 0x20
-  unsigned long int t;
   chirpSensor.begin(true); // wait needs 1s for startup
   uint8_t version = chirpSensor.getVersion();
   Serial.printf("Read from chirp v%02X\n", version);
@@ -41,7 +40,6 @@ bool readChirp(){
   float soilTemperature; 
   size_t tries = 0;
   do {
-    t = timeClient.getEpochTime();
     soilCapacitance = chirpSensor.getCapacitance();
     soilTemperature = chirpSensor.getTemperature()/(float)10; 
     delay(100);

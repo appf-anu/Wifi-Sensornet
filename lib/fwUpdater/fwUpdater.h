@@ -4,6 +4,7 @@
 #include <ESP8266HTTPClient.h> 
 #include <WiFiClient.h>
 
+ 
 #ifdef ARDUINO_ESP8266_NODEMCU
 const char *fwVersionUrl = "http://xn--2xa.ink/files/nodemcuv2.bin.md5";
 #elif defined ARDUINO_ESP8266_ESP12
@@ -66,6 +67,10 @@ void runPreCmd(const char *newFWVersion){
 }
 
 void checkForUpdates() {
+  if(WiFi.status() != WL_CONNECTED) {
+    Serial.println("Not connected to wifi, not checking for update.");
+    return;
+  }
   String fwVersionUrlStr = String(fwVersionUrl);
   Serial.printf( "Checking for firmware updates at %s\n", fwVersionUrl);
   WiFiClient wifiClient;

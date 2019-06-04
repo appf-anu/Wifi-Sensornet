@@ -12,7 +12,7 @@
 
 #include <BH1750.h>
 
-void readBH1750(byte address){
+void readBH1750(unsigned long int t, byte address){
     BH1750 lightMeter = BH1750(address);
     lightMeter.begin(BH1750::ONE_TIME_HIGH_RES_MODE_2);
     float lux = lightMeter.readLightLevel();
@@ -21,7 +21,6 @@ void readBH1750(byte address){
         return;
     }
     DataPoint datapoints[5];
-    unsigned long t = timeClient.getEpochTime();
     datapoints[0] = createDataPoint(FLOAT, "lux", "bh1750", lux, t);
     datapoints[1] = createDataPoint(FLOAT, "PPFDSunlight","bh1750", lux*PPFD_CALIBRATION_SUNLIGHT, t);
     datapoints[2] = createDataPoint(FLOAT, "PPFDFlourescent","bh1750", lux*PPFD_CALIBRATION_FLOURESCENT, t);

@@ -1,10 +1,14 @@
 // #define ESP_DEEPSLEEP true
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
+#include <TimeManager.h>
 #include <Arduino.h>
 #include <Ticker.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <ConfigManager.h>
+
+#include <time.h>
+#include <sntp.h>
 
 #include <ESP8266WiFi.h>      //https://github.com/tzapu/WiFiManager
 #include <DNSServer.h>        //https://github.com/tzapu/WiFiManager
@@ -21,6 +25,8 @@
 #define NO_STARTUP_UPDATE false
 #define UPDATE_HOURS 2
 
+WiFiEventHandler stationConnectedHandler;
+
 
 #if defined ARDUINO_ESP8266_NODEMCU
   #define ONE_WIRE_PIN D5
@@ -35,13 +41,14 @@
 #define ALTITUDECONSTANT 577.0f
 
 ADC_MODE(ADC_VCC);
-unsigned long startMicros;
+unsigned long startMicros = 0;
 
 // You can specify the time server pool and the offset (in seconds, can be
 // changed later with setTimeOffset() ). Additionaly you can specify the
 // update interval (in milliseconds, can be changed using setUpdateInterval() ).
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "au.pool.ntp.org", 0);
+// WiFiUDP ntpUDP;
+// NTPClient timeClient(ntpUDP, "au.pool.ntp.org", 0);
+
 struct Config cfg;
 static uint32_t otaCounter = 1;
 bool shouldSaveConfig = false;
@@ -110,9 +117,32 @@ void ICACHE_RAM_ATTR reset(){
   ESP.restart();
 }
 
-void setup() {
+bool haveNTPTime = false;
 
-  startMicros = micros();
+bool getTime(uint64_t *tm){
+  if (haveNTPTime) {
+    time((time_t*)tm);
+    return true;
+  }
+  bool rval = readRTCMem(tm);
+  *tm += +(millis() / 1000);
+  return rval;
+}
+
+void ICACHE_RAM_ATTR onStationConnected(const WiFiEventSoftAPModeStationConnected& evt) {
+  Serial.print("Station connected...");
+  Serial.println("Updating time...");
+  configTime(0,0, "0.au.pool.ntp.org", "1.au.pool.ntp.org", "2.au.pool.ntp.org");
+  haveNTPTime = true;
+}
+
+void setup() {
+  startMicros = 0;
+  uint64_t tm;
+  if (readRTCMem(&tm)){
+    Serial.printf("rtc-time %llu\n", tm);
+  }
+
   Serial.println("mounting FS...");
   while (!SPIFFS.begin()) {
     Serial.println("failed to mount FS");
@@ -137,6 +167,18 @@ void setup() {
   // WiFiClient client;
   // client.setDefaultNoDelay(true);
   // client.setNoDelay(true);
+  stationConnectedHandler = WiFi.onSoftAPModeStationConnected(&onStationConnected);
+
+
+#ifdef ESP_DEEPSLEEP
+  WiFi.reconnect();
+  size_t tries = 0;
+  while (WiFi.status() != WL_CONNECTED && tries++ < 100) { // wait 10s for wifi.
+    delay(100);
+    Serial.print(".");
+  }
+#else
+
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
   // The extra parameters to be configured (can be either global or just in the setup)
@@ -174,12 +216,7 @@ void setup() {
   sprintf(wifiName, "Sensornet %06x\n", ESP.getChipId());
   Serial.printf("Wifi up on  %s", wifiName);
   //sets timeout until configuration portal gets turned off and esp gets reset.
-#ifdef ESP_DEEPSLEEP
-  wifiManager.setTimeout(60);
-#else
   wifiManager.setTimeout(300);
-#endif
-
   if (!wifiManager.autoConnect(wifiName)) {
     Serial.println("failed to connect and hit timeout");
     delay(3000);
@@ -187,10 +224,13 @@ void setup() {
     ESP.restart();
     delay(5000);
   }
-  WiFi.setAutoReconnect(true);
+
+  Serial.println();
   //if you get here you have connected to the WiFi
+
   Serial.println("connected...yeey :)");
-  
+
+
   //read updated parameters
   strcpy(cfg.influxdb_server, custom_influxdb_server.getValue());
   strcpy(cfg.influxdb_port, custom_influxdb_port.getValue());
@@ -204,14 +244,23 @@ void setup() {
   if (shouldSaveConfig) {
     saveConfig(&cfg);
   }
+#endif
 
+
+  WiFi.setAutoConnect(true);
+  WiFi.setAutoReconnect(true);
   char hostname[32];
   sprintf(hostname, "ESP8266-%s-%d", cfg.location, ESP.getChipId());
   WiFi.hostname(hostname);
 
-  timeClient.begin();
-  Serial.println("Updating time...");
-  timeClient.forceUpdate();
+  // timeClient.begin();
+  if (WiFi.status() == WL_CONNECTED){
+    Serial.print("Station connected normal...");
+    Serial.println("Updating time...");
+    configTime(0,0, "0.au.pool.ntp.org", "1.au.pool.ntp.org", "2.au.pool.ntp.org");
+    haveNTPTime = true;
+  }
+
   Wire.setClockStretchLimit(2500);
   // i2c:   sda,scl
   // 4, 5
@@ -225,19 +274,24 @@ void setup() {
   Serial.println("NOT UPDATING ON BOOT!");
   Serial.printf("Sketch md5: %s\n", ESP.getSketchMD5().c_str());
 #endif
+  
 }
 
 
 double lastLoopTime = 0;
 bool firstLoop = true; 
+
 void loop() {
 #ifndef ESP_DEEPSLEEP
   startMicros = micros();
 #endif
-
+  
+  
+  
   flashButtonCounter = 0;
   ticker.detach();
   ticker.attach(0.05, flashLed);
+
 
   // run update on second loop (tick+1)
   if (otaCounter % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
@@ -246,31 +300,40 @@ void loop() {
     Serial.printf("Not time for update %d/%d\n", otaCounter, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
   }
   otaCounter ++;  
-  for (byte address = 1; address < 127; address++){
-    Wire.beginTransmission(address);
-    if (Wire.endTransmission() == 0){
-      Serial.printf("Found I2C device at address 0x%02X\n", address);
-      if (address == 0x20){
-        readChirp();
-      }
-      if (address == 0x76 || address == 0x77) {
-        if (!readBme280(address)) readBme680();
-      }
+  
 
-      if (address == 0x40){
-        readHDC(address);
-      }
+  uint64_t tm;
+  if (getTime(&tm)){
 
-      if (address == 0x23 || address == 0x5C){
-        readBH1750(address);
+    Serial.printf("Current time: %d\n", tm);
+    Serial.printf("time(): %d\n", (uint64_t)time(nullptr));
+
+    for (byte address = 1; address < 127; address++){
+      Wire.beginTransmission(address);
+      if (Wire.endTransmission() == 0){
+        Serial.printf("Found I2C device at address 0x%02X\n", address);
+        if (address == 0x20){
+          readChirp(tm);
+        }
+        if (address == 0x76 || address == 0x77) {
+          if (!readBme280(tm,address)) readBme680(tm);
+        }
+
+        if (address == 0x40){
+          readHDC(tm, address);
+        }
+
+        if (address == 0x23 || address == 0x5C){
+          readBH1750(tm, address);
+        }
       }
     }
+    
+    readDHT(tm);
+    readDallas(tm);
+    
+    readSys(tm,lastLoopTime, firstLoop);
   }
-  
-  readDHT();
-  readDallas();
-  
-  readSys(lastLoopTime, firstLoop);
   
   if (SPIFFS.exists("/data.dat") && WiFi.status() == WL_CONNECTED){
     DataPoint d;
@@ -311,8 +374,14 @@ void loop() {
       SPIFFS.remove("/data.dat");
     }
   }
+
   unsigned long delta = micros() - startMicros;
   if(delta >= sleepMicros) delta = sleepMicros;
+  uint64_t theTime;
+  getTime(&theTime);
+  writeRTCData(theTime, ((uint64_t)(sleepMicros-delta)));
+  
+
   #ifdef ESP_DEEPSLEEP
     Serial.printf("DEEPSLEEP for %.2fs\n", (sleepMicros-delta)/1000000.0f);
     ESP.deepSleep(sleepMicros-delta);

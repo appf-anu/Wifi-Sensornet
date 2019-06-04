@@ -14,8 +14,7 @@ bool isValidDHT22(float temperature, float humidity){
 }
 
 DHT dht(ONE_WIRE_PIN, DHT22);
-bool readDHT(){
-  unsigned long int t = timeClient.getEpochTime();
+bool readDHT(unsigned long int t){
   dht.begin();
   Serial.println("Read From DHT22");
 
@@ -23,8 +22,6 @@ bool readDHT(){
   float temp = dht.readTemperature();
   size_t tries = 0;
   do {
-    t = timeClient.getEpochTime();
-      
     hum = dht.readHumidity();
     temp = dht.readTemperature();
     delay(100);

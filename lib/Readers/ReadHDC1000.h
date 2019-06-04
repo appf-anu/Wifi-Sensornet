@@ -14,9 +14,8 @@ bool isValidHDC(float temperature, float humidity){
 }
 
 Adafruit_HDC1000 hdc;
-bool readHDC(byte addr){
+bool readHDC(unsigned long int t, byte addr){
   
-  unsigned long int t = timeClient.getEpochTime();
   hdc.begin(addr);
   Serial.println("Read From HDC");
   
@@ -24,8 +23,6 @@ bool readHDC(byte addr){
   float temp = hdc.readTemperature();
   size_t tries = 0;
   do {
-    t = timeClient.getEpochTime();
-      
     hum = hdc.readHumidity();
     temp = hdc.readTemperature();
     delay(100);

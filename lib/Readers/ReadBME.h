@@ -27,9 +27,7 @@ bool isValidBME(float temperature, float humidity, float pressure){
 }
 
 
-bool readBme280(byte address){
-  unsigned long int t;
-  
+bool readBme280(unsigned long int t, byte address){
   size_t tries = 0;
   do {
     delay(250);
@@ -55,7 +53,6 @@ bool readBme280(byte address){
   Serial.println("Read From bme280");
   tries = 0;
   do {
-    t = timeClient.getEpochTime();
     temp = bme.readTemperature();
     pres = bme.readPressure()/100.0F;
     hum = bme.readHumidity();
@@ -79,8 +76,8 @@ bool readBme280(byte address){
   return true; 
 }
 
-bool readBme680(){
-  unsigned long int t;
+bool readBme680(unsigned long int t){
+
   Adafruit_BME680 bme; // I2C
   size_t tries = 0;
   do {
@@ -105,7 +102,6 @@ bool readBme680(){
   float hum;
   unsigned int gas;
   do {
-    t = timeClient.getEpochTime();
     temp = bme.readTemperature();
     pres = bme.readPressure()/100.0F;
     hum = bme.readHumidity();
