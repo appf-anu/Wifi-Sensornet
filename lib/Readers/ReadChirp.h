@@ -55,6 +55,6 @@ bool readChirp(unsigned long int t){
 
   bulkOutputDataPoints(dps, 2, "chirp", t);
   // this breaks other i2c devices.
-  // chirpSensor.sleep();
+  chirpSensor.sleep();
   return true;
 }
