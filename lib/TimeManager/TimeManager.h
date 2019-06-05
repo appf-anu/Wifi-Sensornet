@@ -11,13 +11,12 @@ uint32_t calculateCRC32(const uint8_t *data, size_t length);
 struct {
   uint32_t crc32started;
   uint32_t crc32sleptfor;
-  uint64_t timeSleepStarted;
+  time_t timeSleepStarted;
   uint64_t timeSleptFor;
 } rtcData;
 
-bool readRTCMem(uint64_t *theTime){
+bool readRTCMem(time_t *theTime){
     if (ESP.rtcUserMemoryRead(0, (uint32_t*) &rtcData, sizeof(rtcData))) {
-        Serial.println("Read: ");
         uint32_t crc32started = calculateCRC32((uint8_t*) &rtcData.timeSleepStarted, sizeof(rtcData.timeSleepStarted));
         uint32_t crc32sleptfor = calculateCRC32((uint8_t*) &rtcData.timeSleptFor, sizeof(rtcData.timeSleptFor));
         
@@ -26,15 +25,15 @@ bool readRTCMem(uint64_t *theTime){
             return false;
         }
         
-        *theTime = (uint64_t)(rtcData.timeSleepStarted + ((float)rtcData.timeSleptFor/1000000.0f));
+        *theTime = (rtcData.timeSleepStarted + ((float)rtcData.timeSleptFor/1000000.0f));
         Serial.printf("Loaded time %d from RTC mem\n", *theTime);
         return true;
     }
     return false;
 }
 
-bool writeRTCData(uint64_t timeSleepStarted, uint64_t timeSleptFor){
-    Serial.printf("Setting RTC mem to %d + %ds\n", timeSleepStarted, timeSleptFor/1000000.0f);
+bool writeRTCData(time_t timeSleepStarted, uint64_t timeSleptFor){
+    Serial.printf("Setting RTC mem to %d + %fs\n", timeSleepStarted, timeSleptFor/1000000.0f);
     rtcData.timeSleepStarted = timeSleepStarted;
     rtcData.timeSleptFor = timeSleptFor;
     rtcData.crc32started = calculateCRC32((uint8_t*) &rtcData.timeSleepStarted, sizeof(rtcData.timeSleepStarted));

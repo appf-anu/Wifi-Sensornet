@@ -1,0 +1,15 @@
+{
+    "tasks": [
+        {
+            "type": "shell",
+            "taskName": "upload-firmware",
+            "label": "upload-firmware",
+            "command": "./uploadfirmware.sh",
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "args": [],
+            "isShellCommand": true
+        }
+    ]
+}

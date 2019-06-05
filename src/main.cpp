@@ -8,6 +8,8 @@
 #include <ConfigManager.h>
 
 #include <time.h>
+#include <sys/time.h>                   // struct timeval
+#include <coredecls.h>                  // settimeofday_cb()
 #include <sntp.h>
 
 #include <ESP8266WiFi.h>      //https://github.com/tzapu/WiFiManager
@@ -20,14 +22,12 @@
 
 #include <fwUpdater.h>
 // DEFINES
-#define DEBUG_POST false
-#define DEBUG_WIFI_CONNECTION false
 #define NO_STARTUP_UPDATE false
 #define UPDATE_HOURS 2
 
 WiFiEventHandler stationConnectedHandler;
 
-
+timeval cbtime;
 #if defined ARDUINO_ESP8266_NODEMCU
   #define ONE_WIRE_PIN D5
   #define SCL D1
@@ -117,31 +117,71 @@ void ICACHE_RAM_ATTR reset(){
   ESP.restart();
 }
 
-bool haveNTPTime = false;
-
-bool getTime(uint64_t *tm){
-  if (haveNTPTime) {
-    time((time_t*)tm);
-    return true;
-  }
-  bool rval = readRTCMem(tm);
-  *tm += +(millis() / 1000);
-  return rval;
-}
+// bool haveNTPTime = false;
+// bool getTime(uint64_t *tm){
+//   if (haveNTPTime && time(nullptr) != 0) {
+//     time((time_t*)tm);
+//     return true;
+//   }
+//   bool rval = readRTCMem(tm);
+//   *tm += +(millis() / 1000);
+//   return rval;
+// }
 
 void ICACHE_RAM_ATTR onStationConnected(const WiFiEventSoftAPModeStationConnected& evt) {
   Serial.print("Station connected...");
   Serial.println("Updating time...");
   configTime(0,0, "0.au.pool.ntp.org", "1.au.pool.ntp.org", "2.au.pool.ntp.org");
-  haveNTPTime = true;
+  // haveNTPTime = true;
+}
+
+
+
+// #include <coredecls.h>                  // settimeofday_cb()
+void timecfg(){
+
+  Serial.println("Updating time...");
+  time_t tm = time(nullptr);
+  Serial.printf("time %d\n", tm);
+  Serial.println("configTime");
+  configTime(0,0, "0.au.pool.ntp.org", "1.au.pool.ntp.org", "2.au.pool.ntp.org");
+  delay(300);
+
+}
+
+void ICACHE_RAM_ATTR time_is_set(void){
+  Serial.printf("Time is set %d\n", time(nullptr));
 }
 
 void setup() {
   startMicros = 0;
-  uint64_t tm;
+  settimeofday_cb(time_is_set);
+  
+    // set up TZ string to use a POSIX/gnu TZ string for local timezone
+  // TZ string information:
+  // https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
+  
+  Serial.println("resetting timezone");
+  setenv("TZ", "UTC", 1);
+  tzset(); // save the TZ variable
+
+  timezone tz = { 0, 0};
+  timeval tv = { 0, 0};
+  time_t tm;
   if (readRTCMem(&tm)){
-    Serial.printf("rtc-time %llu\n", tm);
+    Serial.printf("rtc-time %d\n", tm);
+    tv = {tm, 0};
   }
+  // DO NOT attempt to use the timezone offsets
+  // The timezone offset code is really broken.
+  // if used, then localtime() and gmtime() won't work correctly.
+  // always set the timezone offsets to zero and use a proper TZ string
+  // to get timezone and DST support.
+
+  // set the time of day and explicitly set the timezone offsets to zero
+  // as there appears to be a default offset compiled in that needs to
+  // be set to zero to disable it.
+  settimeofday(&tv, &tz);
 
   Serial.println("mounting FS...");
   while (!SPIFFS.begin()) {
@@ -256,9 +296,7 @@ void setup() {
   // timeClient.begin();
   if (WiFi.status() == WL_CONNECTED){
     Serial.print("Station connected normal...");
-    Serial.println("Updating time...");
-    configTime(0,0, "0.au.pool.ntp.org", "1.au.pool.ntp.org", "2.au.pool.ntp.org");
-    haveNTPTime = true;
+    timecfg();
   }
 
   Wire.setClockStretchLimit(2500);
@@ -268,7 +306,7 @@ void setup() {
   Wire.begin(SDA,SCL);
   sleepMinutes = atoi(cfg.interval);
   sleepMicros  = sleepMinutes*6e+7;
-#if ((!DEBUG_POST) && (!DEBUG_WIFI_CONNECTION) && (!NO_STARTUP_UPDATE))
+#if !NO_STARTUP_UPDATE
   checkForUpdates();
 #else
   Serial.println("NOT UPDATING ON BOOT!");
@@ -286,8 +324,6 @@ void loop() {
   startMicros = micros();
 #endif
   
-  
-  
   flashButtonCounter = 0;
   ticker.detach();
   ticker.attach(0.05, flashLed);
@@ -301,12 +337,9 @@ void loop() {
   }
   otaCounter ++;  
   
-
-  uint64_t tm;
-  if (getTime(&tm)){
-
+  time_t tm = time(nullptr);
+  if (tm > 100 && tm < 3559717660){ // very high number to prevent some weirdness
     Serial.printf("Current time: %d\n", tm);
-    Serial.printf("time(): %d\n", (uint64_t)time(nullptr));
 
     for (byte address = 1; address < 127; address++){
       Wire.beginTransmission(address);
@@ -332,7 +365,7 @@ void loop() {
     readDHT(tm);
     readDallas(tm);
     
-    readSys(tm,lastLoopTime, firstLoop);
+    readSys(tm, lastLoopTime, firstLoop);
   }
   
   if (SPIFFS.exists("/data.dat") && WiFi.status() == WL_CONNECTED){
@@ -377,10 +410,11 @@ void loop() {
 
   unsigned long delta = micros() - startMicros;
   if(delta >= sleepMicros) delta = sleepMicros;
-  uint64_t theTime;
-  getTime(&theTime);
-  writeRTCData(theTime, ((uint64_t)(sleepMicros-delta)));
-  
+  tm = time(nullptr);
+  time_t tr;
+  if (readRTCMem(&tr)) Serial.printf("current rtc-time %d\n", tr);
+  writeRTCData(tm, ((uint64_t)(sleepMicros-delta)));
+
 
   #ifdef ESP_DEEPSLEEP
     Serial.printf("DEEPSLEEP for %.2fs\n", (sleepMicros-delta)/1000000.0f);

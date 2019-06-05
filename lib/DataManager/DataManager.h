@@ -100,11 +100,6 @@ int postMetric(const char *metric, const char sensorType[8]){
     cfg.influxdb_db, 
     cfg.influxdb_user, 
     cfg.influxdb_password);
-  
-  #if DEBUG_POST 
-    Serial.println(metric);
-    return 1;
-  #endif
     WiFiClient wifiClient;
     // http request
     httpClient.begin(wifiClient, url);
@@ -161,11 +156,6 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char sensorType
 
 
 void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], const char *sensorAddr, unsigned long t){
-#if DEBUG_WIFI_CONNECTION
-  Serial.println("Debugging wifi, pretending wifi isnt connected.");
-  for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
-  return;
-#endif
   if (!WiFi.isConnected()) {
     for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
     return;
@@ -177,7 +167,7 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], co
     }
     delay(100); // sleep a bit so as not to hammer the server.
   }
-
+  
   for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
 }
 
@@ -234,11 +224,6 @@ void outputPoint(TYPE dtype, const char name[32], const char sensorType[8], doub
   strcpy(d.sensorType, sensorType);
   strcpy(d.name, name);
   d.value = value;
-#if DEBUG_WIFI_CONNECTION
-  Serial.println("debugging wifi, sending data straight to disk");
-  writeDataPoint(&d);
-  return;
-#endif
   if (WiFi.status() != WL_CONNECTED) {
     writeDataPoint(&d);
     return;
