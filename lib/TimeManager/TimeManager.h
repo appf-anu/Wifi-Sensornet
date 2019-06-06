@@ -56,6 +56,7 @@ uint32_t calculateCRC32(const uint8_t *data, size_t length) {
         crc ^= 0x04c11db7;
       }
     }
+    yield();
   }
   return crc;
 }

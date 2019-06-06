@@ -33,7 +33,6 @@ timeval cbtime;
   #define SCL D1
   #define SDA D2
 #else
-  #define ESP_DEEPSLEEP
   #define ONE_WIRE_PIN 14
   #define SCL 5
   #define SDA 4
@@ -338,7 +337,8 @@ void loop() {
   otaCounter ++;  
   
   time_t tm = time(nullptr);
-  if (tm > 100 && tm < 3559717660){ // very high number to prevent some weirdness
+  // before time is jan 1 2000
+  if (tm > 946684800 && tm < 3559717660){ // very high number to prevent some weirdness
     Serial.printf("Current time: %d\n", tm);
 
     for (byte address = 1; address < 127; address++){
@@ -360,11 +360,10 @@ void loop() {
           readBH1750(tm, address);
         }
       }
+      yield();
     }
-    
     readDHT(tm);
     readDallas(tm);
-    
     readSys(tm, lastLoopTime, firstLoop);
   }
   
@@ -398,7 +397,8 @@ void loop() {
       }
       size_t tries = 0;
       do {
-        delay(50);
+        yield();
+        delay(100);
       } while(tries++ < 3 && !postDataPointToInfluxDB(&d));
       if (tries >= 3) failedWrite = true;
     }
@@ -411,9 +411,12 @@ void loop() {
   unsigned long delta = micros() - startMicros;
   if(delta >= sleepMicros) delta = sleepMicros;
   tm = time(nullptr);
-  time_t tr;
-  if (readRTCMem(&tr)) Serial.printf("current rtc-time %d\n", tr);
-  writeRTCData(tm, ((uint64_t)(sleepMicros-delta)));
+  // before time is jan 1 2000
+  if (tm > 946684800 && tm < 3559717660){ // very high number to prevent some weirdness
+    time_t tr;
+    if (readRTCMem(&tr)) Serial.printf("current rtc-time %d\n", tr);
+    writeRTCData(tm, ((uint64_t)(sleepMicros-delta)));
+  }
 
 
   #ifdef ESP_DEEPSLEEP

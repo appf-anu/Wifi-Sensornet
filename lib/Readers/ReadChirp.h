@@ -26,7 +26,6 @@ bool readChirp(unsigned long int t){
   uint8_t version = chirpSensor.getVersion();
   Serial.printf("Read from chirp v%02X\n", version);
   if (version >= 0x23){
-
     chirpSensor.getCapacitance();
     chirpSensor.getTemperature();
     size_t waits = 0;

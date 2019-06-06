@@ -104,6 +104,7 @@ int postMetric(const char *metric, const char sensorType[8]){
     // http request
     httpClient.begin(wifiClient, url);
     int httpCode = httpClient.POST(metric);
+    delay(100); // delay a little bit to avoid being got by the wdt
 
     Serial.printf("POST %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
     
@@ -149,6 +150,7 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char sensorType
         break;
     }
     if (x != num - 1) strcat(metric, ",");
+    yield();
   }
   sprintf(metric, "%s %lu", metric, t); 
   return postMetric(metric, sensorType);
@@ -157,7 +159,10 @@ int postBulkDataPointsToInfluxdb(DataPoint *d, size_t num, const char sensorType
 
 void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], const char *sensorAddr, unsigned long t){
   if (!WiFi.isConnected()) {
-    for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
+    for (size_t x = 0; x < num; x++) {
+      writeDataPoint(d+x);
+      yield();
+    }
     return;
   }
 
@@ -166,9 +171,13 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], co
       return;
     }
     delay(100); // sleep a bit so as not to hammer the server.
+    yield();
   }
   
-  for (size_t x = 0; x < num; x++) writeDataPoint(d+x);
+  for (size_t x = 0; x < num; x++) {
+    writeDataPoint(d+x);
+    yield();
+  }
 }
 
 void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], unsigned long t){
@@ -232,7 +241,7 @@ void outputPoint(TYPE dtype, const char name[32], const char sensorType[8], doub
     if (postDataPointToInfluxDB(&d)){
       return;
     }
-    delay(100); // sleep a second so as not to hammer the server.
+    yield();
   }
   writeDataPoint(&d);
 }
@@ -265,7 +274,7 @@ size_t createEnvironmentData(const char sensorType[8], unsigned long int t, doub
   double actualVapourPressure = hum / 100 * saturatedVapourPressure;
   env[n++] = createDataPoint(FLOAT, "airActualVaporPressure", sensorType, saturatedVapourPressure, t);
 
-  // this equation returns a negative value (in kPa), which while technically correct,
+  // this equation returns a negative value (in kPa), which is technically correct, but
   // is invalid in this case because we are talking about a deficit.
   double vapourPressureDeficit = (actualVapourPressure - saturatedVapourPressure) * -1;
   env[n++] = createDataPoint(FLOAT, "airVapourPressureDeficit", sensorType, vapourPressureDeficit, t);
@@ -300,7 +309,7 @@ size_t createEnvironmentData(const char sensorType[8], unsigned long int t, doub
   // actual vapor pressure (ea)
   double actualVapourPressure = hum / 100 * saturatedVapourPressure;
   env[n++] = createDataPoint(FLOAT, "airActualVaporPressure", sensorType, saturatedVapourPressure, t);
-  // this equation returns a negative value (in kPa), which while technically correct,
+  // this equation returns a negative value (in kPa), which is technically correct, but
   // is invalid in this case because we are talking about a deficit.
   double vapourPressureDeficit = (actualVapourPressure - saturatedVapourPressure) * -1;
   env[n++] = createDataPoint(FLOAT, "airVapourPressureDeficit", sensorType, vapourPressureDeficit, t);
