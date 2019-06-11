@@ -52,7 +52,9 @@ bool readBme280(unsigned long int t, byte address){
   // whatever is going on here it gives weird values.
   Serial.println("Read From bme280");
   tries = 0;
+  
   do {
+    bme.takeForcedMeasurement();
     temp = bme.readTemperature();
     pres = bme.readPressure()/100.0F;
     hum = bme.readHumidity();

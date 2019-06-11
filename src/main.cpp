@@ -24,7 +24,7 @@
 // DEFINES
 #define NO_STARTUP_UPDATE false
 // chirp sensor clock stretching causes issues with esp8266.
-#define USE_CHIRP true
+#define USE_CHIRP false
 #define UPDATE_HOURS 2
 
 timeval cbtime;
