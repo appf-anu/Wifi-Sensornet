@@ -21,16 +21,18 @@ bool isValidChirp(unsigned int soilCapacitance, float soilTemperature){
 }
 
 bool readChirp(unsigned long int t){
+  // Wire.setClockStretchLimit(2500);
   // chirp soil moisture sensor is address 0x20
   chirpSensor.begin(true); // wait needs 1s for startup
   uint8_t version = chirpSensor.getVersion();
   Serial.printf("Read from chirp v%02X\n", version);
-  if (version >= 0x23){
+  if (version >= 23){
     chirpSensor.getCapacitance();
     chirpSensor.getTemperature();
     size_t waits = 0;
     do {
       delay(50);
+      yield();
     } while (chirpSensor.isBusy() && waits < 10);
     if (waits >= 10) return false;
   }
@@ -42,6 +44,7 @@ bool readChirp(unsigned long int t){
     soilCapacitance = chirpSensor.getCapacitance();
     soilTemperature = chirpSensor.getTemperature()/(float)10; 
     delay(100);
+    yield();
   } while (tries++ < MAX_TRIES && !isValidChirp(soilCapacitance, soilTemperature));
   if (tries >= MAX_TRIES) return false;
   
@@ -54,6 +57,10 @@ bool readChirp(unsigned long int t){
 
   bulkOutputDataPoints(dps, 2, "chirp", t);
   // this breaks other i2c devices.
-  chirpSensor.sleep();
+  if (version >= 23) chirpSensor.sleep();
+  
+  // Wire.setClockStretchLimit(230);
+  // .../framework-arduinoespressif8266/cores/esp8266/core_esp8266_si2c.cpp:161
+  // twi_setClockStretchLimit(230); // default value is 230 uS
   return true;
 }

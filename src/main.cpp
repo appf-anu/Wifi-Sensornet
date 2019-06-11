@@ -23,9 +23,9 @@
 #include <fwUpdater.h>
 // DEFINES
 #define NO_STARTUP_UPDATE false
+// chirp sensor clock stretching causes issues with esp8266.
+#define USE_CHIRP true
 #define UPDATE_HOURS 2
-
-WiFiEventHandler stationConnectedHandler;
 
 timeval cbtime;
 #if defined ARDUINO_ESP8266_NODEMCU
@@ -116,27 +116,7 @@ void ICACHE_RAM_ATTR reset(){
   ESP.restart();
 }
 
-// bool haveNTPTime = false;
-// bool getTime(uint64_t *tm){
-//   if (haveNTPTime && time(nullptr) != 0) {
-//     time((time_t*)tm);
-//     return true;
-//   }
-//   bool rval = readRTCMem(tm);
-//   *tm += +(millis() / 1000);
-//   return rval;
-// }
 
-void ICACHE_RAM_ATTR onStationConnected(const WiFiEventSoftAPModeStationConnected& evt) {
-  Serial.print("Station connected...");
-  Serial.println("Updating time...");
-  configTime(0,0, "0.au.pool.ntp.org", "1.au.pool.ntp.org", "2.au.pool.ntp.org");
-  // haveNTPTime = true;
-}
-
-
-
-// #include <coredecls.h>                  // settimeofday_cb()
 void timecfg(){
 
   Serial.println("Updating time...");
@@ -206,8 +186,6 @@ void setup() {
   // WiFiClient client;
   // client.setDefaultNoDelay(true);
   // client.setNoDelay(true);
-  stationConnectedHandler = WiFi.onSoftAPModeStationConnected(&onStationConnected);
-
 
 #ifdef ESP_DEEPSLEEP
   WiFi.reconnect();
@@ -297,8 +275,10 @@ void setup() {
     Serial.print("Station connected normal...");
     timecfg();
   }
-
+#if USE_CHIRP
+  // TODO: I think this is breaking the esps
   Wire.setClockStretchLimit(2500);
+#endif
   // i2c:   sda,scl
   // 4, 5
   // D2,D1
@@ -346,8 +326,13 @@ void loop() {
       if (Wire.endTransmission() == 0){
         Serial.printf("Found I2C device at address 0x%02X\n", address);
         if (address == 0x20){
+#if USE_CHIRP
           readChirp(tm);
+#else
+          Serial.println("Not compiled to read from chirp sensor.");
+#endif
         }
+
         if (address == 0x76 || address == 0x77) {
           if (!readBme280(tm,address)) readBme680(tm);
         }
@@ -363,8 +348,11 @@ void loop() {
       yield();
     }
     readDHT(tm);
+    delay(20);
     readDallas(tm);
+    delay(20);
     readSys(tm, lastLoopTime, firstLoop);
+    delay(20);
   }
   
   if (SPIFFS.exists("/data.dat") && WiFi.status() == WL_CONNECTED){
@@ -398,7 +386,7 @@ void loop() {
       size_t tries = 0;
       do {
         yield();
-        delay(100);
+        delay(50);
       } while(tries++ < 3 && !postDataPointToInfluxDB(&d));
       if (tries >= 3) failedWrite = true;
     }

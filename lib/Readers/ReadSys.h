@@ -19,22 +19,29 @@ void readSys(unsigned long int t, unsigned long lastLoopTime, bool firstLoop){
   memset(dps, 0, sizeof(dps));
   size_t n = 0;
   dps[n++] = createDataPoint(INT, "espVcc", "sys", ESP.getVcc(), t);
+  delay(20);
   dps[n++] = createDataPoint(INT, "espFreeHeap", "sys", ESP.getFreeHeap(), t);
+  delay(20);
   dps[n++] = createDataPoint(INT, "espHeapFragmentation", "sys", ESP.getHeapFragmentation(), t);
+  delay(20);
   dps[n++] = createDataPoint(INT, "espWiFiRSSI", "sys", (int)WiFi.RSSI(), t);
+  delay(20);
   dps[n++] = createDataPoint(INT, "lastLoopTime", "sys", lastLoopTime, t);
+  delay(20);
   dps[n++] = createDataPoint(INT, "espSketchSize", "sys", ESP.getSketchSize(), t);
-  
+  delay(20);
   float until = (int)(UPDATE_HOURS*60)-(otaCounter-1) % (int)(UPDATE_HOURS*60);
   dps[n++] = createDataPoint(INT, "secondsUntilNextUpdate", "sys", (int)until*60, t);
-
+  delay(20);
   if (firstLoop){
     dps[n++] = createDataPoint(INT, "bootReason", "sys", (int)ESP.getResetInfoPtr()->reason, t);
   }
+  delay(20);
   if (SPIFFS.exists("/data.dat")){
     File f = SPIFFS.open("/data.dat", "r");
     dps[n++] = createDataPoint(INT, "dataFileSize", "sys", f.size(), t);
     f.close();
   }
+  delay(20);
   bulkOutputDataPoints(dps, n, "sys", t);
 }

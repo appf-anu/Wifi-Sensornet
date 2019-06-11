@@ -28,7 +28,6 @@ struct DataPoint
     TYPE type;
 };
 
-
 DataPoint env[9];
 
 int writeDataPoint(DataPoint *d){
@@ -166,18 +165,25 @@ void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], co
     return;
   }
 
-  for (size_t tries = 0; tries < 3; tries++ ){
-    if (postBulkDataPointsToInfluxdb(d, num, sensorType, sensorAddr, t)){  
-      return;
-    }
-    delay(100); // sleep a bit so as not to hammer the server.
-    yield();
-  }
+  if (postBulkDataPointsToInfluxdb(d, num, sensorType, sensorAddr, t)) return;
   
   for (size_t x = 0; x < num; x++) {
     writeDataPoint(d+x);
     yield();
   }
+
+  // for (size_t tries = 0; tries < 31; tries++ ){
+  //   if (postBulkDataPointsToInfluxdb(d, num, sensorType, sensorAddr, t)){  
+  //     return;
+  //   }
+  //   delay(100); // sleep a bit so as not to hammer the server.
+  //   yield();
+  // }
+  
+  // for (size_t x = 0; x < num; x++) {
+  //   writeDataPoint(d+x);
+  //   yield();
+  // }
 }
 
 void bulkOutputDataPoints(DataPoint *d, size_t num, const char sensorType[8], unsigned long t){
@@ -237,12 +243,14 @@ void outputPoint(TYPE dtype, const char name[32], const char sensorType[8], doub
     writeDataPoint(&d);
     return;
   }
-  for (size_t tries = 0; tries < 3; tries++ ){
-    if (postDataPointToInfluxDB(&d)){
-      return;
-    }
-    yield();
-  }
+  // for (size_t tries = 0; tries < 2; tries++ ){
+  //   if (postDataPointToInfluxDB(&d)){
+  //     return;
+  //   }
+  //   yield();
+  // }  
+
+  if (postDataPointToInfluxDB(&d)) return;
   writeDataPoint(&d);
 }
 
