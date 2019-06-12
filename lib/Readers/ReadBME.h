@@ -63,18 +63,15 @@ bool readBme280(unsigned long int t, byte address){
 
   if (tries >= MAX_TRIES) return false;
   
-  DataPoint dps[3];
-  memset(dps, 0, sizeof(dps));
+  DataSender<DataPoint> sender(t, 3, "bme280");
 
-  dps[0] = createDataPoint(FLOAT, "airPressure", "bme280", pres, t);
-  dps[1] = createDataPoint(FLOAT, "airTemperature", "bme280", temp, t);
-  dps[2] = createDataPoint(FLOAT, "airRelativeHumidity", "bme280", hum, t);
-
-  bulkOutputDataPoints(dps, 3, "bme280", t);
-  
-  size_t n = createEnvironmentData("bme280", t, temp, hum, pres);
-  bulkOutputDataPoints(env, n, "bme280", t);
-
+  DataPoint airPressure = createDataPoint(FLOAT, "airPressure", "bme280", pres, t);
+  sender.push_back(airPressure);
+  DataPoint airTemperature = createDataPoint(FLOAT, "airTemperature", "bme280",temp , t);
+  sender.push_back(airTemperature);
+  DataPoint airRelativeHumidity = createDataPoint(FLOAT, "airRelativeHumidity", "bme280",hum , t);
+  sender.push_back(airRelativeHumidity);
+  sender.push_environment_data(temp, hum, pres);
   return true; 
 }
 
@@ -113,19 +110,19 @@ bool readBme680(unsigned long int t){
 
   if (tries >= MAX_TRIES) return false;
 
-  DataPoint dps[5];
-  memset(dps, 0, sizeof(dps));  
-  dps[0] = createDataPoint(FLOAT, "airPressure", "bme680", pres, t);
-  dps[1] = createDataPoint(FLOAT, "airTemperature", "bme680",temp , t);
-  dps[2] = createDataPoint(FLOAT, "airRelativeHumidity", "bme680",hum , t);
+  DataSender<DataPoint> sender(t, 3, "bme680");
+
+  DataPoint airPressure = createDataPoint(FLOAT, "airPressure", "bme680", pres, t);
+  sender.push_back(airPressure);
+  DataPoint airTemperature = createDataPoint(FLOAT, "airTemperature", "bme680",temp , t);
+  sender.push_back(airTemperature);
+  DataPoint airRelativeHumidity = createDataPoint(FLOAT, "airRelativeHumidity", "bme680",hum , t);
+  sender.push_back(airRelativeHumidity);
   
   // gas resistance in Ohms
-  dps[3] = createDataPoint(INT, "airGasResistance", "bme680", gas, t); 
-  
-  bulkOutputDataPoints(dps, 5, "bme680", t);
-  
-  size_t n = createEnvironmentData("bme680", t, temp, hum, pres);
-  bulkOutputDataPoints(env, n, "bme680", t);
+  DataPoint gas_ = createDataPoint(INT, "airGasResistance", "bme680", gas, t); 
+  sender.push_back(gas_);
+  sender.push_environment_data(temp, hum, pres);
 
   return true;
 }

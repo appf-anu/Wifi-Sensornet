@@ -27,15 +27,11 @@ bool readDHT(unsigned long int t){
     delay(100);
   } while (tries++ < MAX_TRIES && !isValidDHT22(temp, hum));
   if (tries >= MAX_TRIES) return false;
-  
-  DataPoint dps[2];
-  
-  
-  dps[0] = createDataPoint(FLOAT, "airTemperature", "dht22", temp, t);
-  dps[1] = createDataPoint(FLOAT, "airRelativeHumidity", "dht22", hum, t);
-  bulkOutputDataPoints(dps, 2, "dht22", t);
-  
-  size_t n = createEnvironmentData("dht22", t, temp, hum);
-  bulkOutputDataPoints(env, n, "dht22", t);
+  DataSender<DataPoint> sender(t, 3, "dht22");
+  DataPoint airTemperature = createDataPoint(FLOAT, "airTemperature", "dht22", temp, t);
+  sender.push_back(airTemperature);
+  DataPoint airRelativeHumidity = createDataPoint(FLOAT, "airRelativeHumidity", "dht22", hum, t);
+  sender.push_back(airRelativeHumidity);
+  sender.push_environment_data(temp, hum);
   return true;
 }

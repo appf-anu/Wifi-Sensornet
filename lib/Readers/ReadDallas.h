@@ -44,8 +44,8 @@ void readDallas(unsigned long int t){
     } while (tries++ < MAX_TRIES && !isValidDallas(temp));
     
     if (tries >= MAX_TRIES) continue;
-
+    DataSender<DataPoint> sender(t, 1, "dallas", addrHex);
     DataPoint d = createDataPoint(FLOAT, "temperature", "dallas", addrHex, temp, t);
-    postDataPointToInfluxDB(&d);
+    sender.push_back(d);
   }
 }

@@ -20,16 +20,24 @@ void readBH1750(unsigned long int t, byte address){
         Serial.printf("Got invalud lux reading from light meter: %f", lux);
         return;
     }
-    DataPoint datapoints[5];
-    datapoints[0] = createDataPoint(FLOAT, "lux", "bh1750", lux, t);
-    datapoints[1] = createDataPoint(FLOAT, "PPFDSunlight","bh1750", lux*PPFD_CALIBRATION_SUNLIGHT, t);
-    datapoints[2] = createDataPoint(FLOAT, "PPFDFlourescent","bh1750", lux*PPFD_CALIBRATION_FLOURESCENT, t);
-    datapoints[3] = createDataPoint(FLOAT, "PPFDMetalHalide","bh1750", lux*PPFD_CALIBRATION_METAL_HALIDE, t);
-    datapoints[4] = createDataPoint(FLOAT, "PPFDHighPressureSodium","bh1750", lux*PPFD_CALIBRATION_HPS, t);
-    bulkOutputDataPoints(datapoints, 5, "bh1750", t);
+    DataSender<DataPoint> sender(t, 3, "bh1750");
+    DataPoint lux_ = createDataPoint(FLOAT, "lux", "bh1750", lux, t);
+    sender.push_back(lux_);
+    DataPoint PPFDSunlight = createDataPoint(FLOAT, "PPFDSunlight","bh1750", lux*PPFD_CALIBRATION_SUNLIGHT, t);
+    sender.push_back(PPFDSunlight);
+    DataPoint PPFDFlourescent = createDataPoint(FLOAT, "PPFDFlourescent","bh1750", lux*PPFD_CALIBRATION_FLOURESCENT, t);
+    sender.push_back(PPFDFlourescent);
+    DataPoint PPFDMetalHalide = createDataPoint(FLOAT, "PPFDMetalHalide","bh1750", lux*PPFD_CALIBRATION_METAL_HALIDE, t);
+    sender.push_back(PPFDMetalHalide);
+    DataPoint PPFDHighPressureSodium = createDataPoint(FLOAT, "PPFDHighPressureSodium","bh1750", lux*PPFD_CALIBRATION_HPS, t);
+    sender.push_back(PPFDHighPressureSodium);
+    
 #if CALIBRATE_SPECIFIC_LAMPS
-    outputPoint(FLOAT, "PPFDDualEndedHighPressureSodium","bh1750", lux*PPFD_CALIBRATION_DEHPS);
-    outputPoint(FLOAT, "PPFDCeramicMetalHalide4200k","bh1750", lux*PPFD_CALIBRATION_CMH942);
-    outputPoint(FLOAT, "PPFDCeramicMetalHalide3100k","bh1750", lux*PPFD_CALIBRATION_CMH930);
+    DataPoint PPFDDualEndedHighPressureSodium = createDataPoint(FLOAT, "PPFDDualEndedHighPressureSodium","bh1750", lux*PPFD_CALIBRATION_DEHPS);
+    sender.push_back(PPFDDualEndedHighPressureSodium);
+    DataPoint PPFDCeramicMetalHalide4200k = createDataPoint(FLOAT, "PPFDCeramicMetalHalide4200k","bh1750", lux*PPFD_CALIBRATION_CMH942);
+    sender.push_back(PPFDCeramicMetalHalide4200k);
+    DataPoint PPFDCeramicMetalHalide3100k = createDataPoint(FLOAT, "PPFDCeramicMetalHalide3100k","bh1750", lux*PPFD_CALIBRATION_CMH930);
+    sender.push_back(PPFDCeramicMetalHalide3100k);
 #endif   
 }

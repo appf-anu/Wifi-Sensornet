@@ -32,7 +32,6 @@ bool readChirp(unsigned long int t){
     size_t waits = 0;
     do {
       delay(50);
-      yield();
     } while (chirpSensor.isBusy() && waits < 10);
     if (waits >= 10) return false;
   }
@@ -47,15 +46,14 @@ bool readChirp(unsigned long int t){
     yield();
   } while (tries++ < MAX_TRIES && !isValidChirp(soilCapacitance, soilTemperature));
   if (tries >= MAX_TRIES) return false;
-  
-  DataPoint dps[2];
-  memset(dps, 0, sizeof(dps));
-  dps[0] = createDataPoint(INT, "soilCapacitance", "chirp", soilCapacitance, t);
-  
-  // temperature is in multiple of 10
-  dps[1] = createDataPoint(FLOAT, "soilTemperature", "chirp", soilTemperature, t);
+  DataSender<DataPoint> sender(t, 3, "chirp");
 
-  bulkOutputDataPoints(dps, 2, "chirp", t);
+  DataPoint soilCapacitance_ = createDataPoint(INT, "soilCapacitance", "chirp", soilCapacitance, t); 
+  sender.push_back(soilCapacitance_);
+  // temperature is in multiple of 10
+  DataPoint soilTemperature_ = createDataPoint(FLOAT, "soilTemperature", "chirp", soilTemperature, t);
+  sender.push_back(soilTemperature_);
+  
   // this breaks other i2c devices.
   if (version >= 23) chirpSensor.sleep();
   

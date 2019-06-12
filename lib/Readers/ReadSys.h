@@ -1,8 +1,7 @@
 #include <ESP8266WiFi.h>
 extern "C" {
-#include <user_interface.h>
+  #include <user_interface.h>
 }
-
 // enum rst_reason {
 //     REASON_DEFAULT_RST      = 0,    /* normal startup by power on */
 //     REASON_WDT_RST          = 1,    /* hardware watch dog reset */
@@ -13,35 +12,66 @@ extern "C" {
 //     REASON_EXT_SYS_RST      = 6     /* external system reset */
 // };
 
+// https://github.com/esp8266/Arduino/blob/master/doc/exception_causes.rst
+
 void readSys(unsigned long int t, unsigned long lastLoopTime, bool firstLoop){
   Serial.println("Read from sys");
-  DataPoint dps[12];
-  memset(dps, 0, sizeof(dps));
-  size_t n = 0;
-  dps[n++] = createDataPoint(INT, "espVcc", "sys", ESP.getVcc(), t);
-  delay(20);
-  dps[n++] = createDataPoint(INT, "espFreeHeap", "sys", ESP.getFreeHeap(), t);
-  delay(20);
-  dps[n++] = createDataPoint(INT, "espHeapFragmentation", "sys", ESP.getHeapFragmentation(), t);
-  delay(20);
-  dps[n++] = createDataPoint(INT, "espWiFiRSSI", "sys", (int)WiFi.RSSI(), t);
-  delay(20);
-  dps[n++] = createDataPoint(INT, "lastLoopTime", "sys", lastLoopTime, t);
-  delay(20);
-  dps[n++] = createDataPoint(INT, "espSketchSize", "sys", ESP.getSketchSize(), t);
-  delay(20);
+  // DataPoint dps[4];
+  // memset(dps, 0, sizeof(dps));
+  // size_t n = 0;
+  DataSender<DataPoint> sender(t, 3, "sys");
+  DataPoint vcc = createDataPoint(INT, "espVcc", "sys", ESP.getVcc(), t);
+  sender.push_back(vcc);
+
+
+
+  DataPoint espFreeHeap = createDataPoint(INT, "espFreeHeap", "sys", ESP.getFreeHeap(), t);
+  sender.push_back(espFreeHeap);
+  DataPoint espHeapFragmentation = createDataPoint(INT, "espHeapFragmentation", "sys", ESP.getHeapFragmentation(), t);
+  sender.push_back(espHeapFragmentation);
+  
   float until = (int)(UPDATE_HOURS*60)-(otaCounter-1) % (int)(UPDATE_HOURS*60);
-  dps[n++] = createDataPoint(INT, "secondsUntilNextUpdate", "sys", (int)until*60, t);
-  delay(20);
+  DataPoint secondsUntilNextUpdate = createDataPoint(INT, "secondsUntilNextUpdate", "sys", (int)until*60, t);
+  sender.push_back(secondsUntilNextUpdate);
+  DataPoint espSketchSize = createDataPoint(INT, "espSketchSize", "sys", ESP.getSketchSize(), t);
+  sender.push_back(espSketchSize);
+  DataPoint espWiFiRSSI = createDataPoint(INT, "espWiFiRSSI", "sys", (int)WiFi.RSSI(), t);
+  sender.push_back(espWiFiRSSI);
+  DataPoint llt = createDataPoint(INT, "lastLoopTime", "sys", lastLoopTime, t);
+  sender.push_back(llt);
+  
   if (firstLoop){
-    dps[n++] = createDataPoint(INT, "bootReason", "sys", (int)ESP.getResetInfoPtr()->reason, t);
+    rst_info *resetInfo = ESP.getResetInfoPtr();
+    if (resetInfo != NULL){
+      DataPoint reason = createDataPoint(INT, "rst_info.reason", "sys", resetInfo->reason, t);
+      sender.push_back(reason);
+      DataPoint exccause = createDataPoint(INT, "rst_info.exccause", "sys", resetInfo->exccause, t);
+      sender.push_back(exccause);
+      DataPoint epc1 = createDataPoint(INT, "rst_info.epc1", "sys", resetInfo->epc1, t);
+      sender.push_back(epc1);
+      
+      DataPoint epc2 = createDataPoint(INT, "rst_info.epc2", "sys", resetInfo->epc2, t);
+      sender.push_back(epc2);
+      DataPoint epc3 = createDataPoint(INT, "rst_info.epc3", "sys", resetInfo->epc3, t);
+      sender.push_back(epc3);
+      DataPoint excvaddr = createDataPoint(INT, "rst_info.excvaddr", "sys", resetInfo->excvaddr, t);
+      sender.push_back(excvaddr);
+    }
   }
-  delay(20);
-  if (SPIFFS.exists("/data.dat")){
-    File f = SPIFFS.open("/data.dat", "r");
-    dps[n++] = createDataPoint(INT, "dataFileSize", "sys", f.size(), t);
-    f.close();
-  }
-  delay(20);
-  bulkOutputDataPoints(dps, n, "sys", t);
+
+
+  // something wrong with reading flash sometimes.
+  // FSInfo fs_info;
+  // if (SPIFFS.info(fs_info)){
+  //   dps[n++] = createDataPoint(INT, "fs_info.totalBytes", "sys", fs_info.totalBytes, t);
+  //   dps[n++] = createDataPoint(INT, "fs_info.usedBytes", "sys", fs_info.usedBytes, t);
+  // }
+  
+  // if (SPIFFS.exists("/data.dat")){
+  //   File f = SPIFFS.open("/data.dat", "r");
+  //   dps[n++] = createDataPoint(INT, "dataFileSize", "sys", f.size(), t);
+  //   f.close();
+  // }
+  // delay(100);
+  // bulkOutputDataPoints(dps, n, "sys", t);
 }

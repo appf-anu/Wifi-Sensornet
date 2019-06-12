@@ -32,14 +32,12 @@ bool readHDC(unsigned long int t, byte addr){
   if (isnan(temp) || isnan(hum)){
     return false;
   }
-  DataPoint dps[2];
-  
-  
-  dps[0] = createDataPoint(FLOAT, "airTemperature", "hdc", temp, t);
-  dps[1] = createDataPoint(FLOAT, "airRelativeHumidity", "hdc", hum, t);
-  bulkOutputDataPoints(dps, 2, "hdc", t);
-  
-  size_t n = createEnvironmentData("hdc", t, temp, hum);
-  bulkOutputDataPoints(env, n, "hdc", t);
+
+  DataSender<DataPoint> sender(t, 3, "hdc");
+  DataPoint airTemperature = createDataPoint(FLOAT, "airTemperature", "hdc", temp, t);
+  sender.push_back(airTemperature);
+  DataPoint airRelativeHumidity = createDataPoint(FLOAT, "airRelativeHumidity", "hdc", hum, t);
+  sender.push_back(airRelativeHumidity);
+  sender.push_environment_data(temp, hum);
   return true;
 }

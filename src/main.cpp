@@ -17,9 +17,6 @@
 #include <ESP8266WebServer.h> //https://github.com/tzapu/WiFiManager
 #include <WiFiManager.h>      //https://github.com/tzapu/WiFiManager
 
-#include <NTPClient.h>        //https://github.com/arduino-libraries/NTPClient
-#include <WiFiUdp.h>          //https://github.com/arduino-libraries/NTPClient
-
 #include <fwUpdater.h>
 // DEFINES
 #define NO_STARTUP_UPDATE false
@@ -41,12 +38,6 @@ timeval cbtime;
 
 ADC_MODE(ADC_VCC);
 unsigned long startMicros = 0;
-
-// You can specify the time server pool and the offset (in seconds, can be
-// changed later with setTimeOffset() ). Additionaly you can specify the
-// update interval (in milliseconds, can be changed using setUpdateInterval() ).
-// WiFiUDP ntpUDP;
-// NTPClient timeClient(ntpUDP, "au.pool.ntp.org", 0);
 
 struct Config cfg;
 static uint32_t otaCounter = 1;
@@ -90,7 +81,7 @@ void ICACHE_RAM_ATTR reset(){
     Serial.printf("press the flash button %d more times to ota next interval...\n", 5-flashButtonCounter);
     return;
   }
-  
+
   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
   otaCounter = 0; // reset the ota interval
   
@@ -116,6 +107,9 @@ void ICACHE_RAM_ATTR reset(){
   ESP.restart();
 }
 
+void ICACHE_RAM_ATTR time_is_set(void){
+  Serial.printf("Time is set %d\n", time(nullptr));
+}
 
 void timecfg(){
 
@@ -128,10 +122,6 @@ void timecfg(){
 
 }
 
-void ICACHE_RAM_ATTR time_is_set(void){
-  Serial.printf("Time is set %d\n", time(nullptr));
-}
-
 void setup() {
   startMicros = 0;
   settimeofday_cb(time_is_set);
@@ -140,6 +130,10 @@ void setup() {
   // TZ string information:
   // https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
   
+
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  Serial.println();
   Serial.println("resetting timezone");
   setenv("TZ", "UTC", 1);
   tzset(); // save the TZ variable
@@ -174,9 +168,6 @@ void setup() {
   pinMode(0, INPUT_PULLUP); // aka D3 aka flash button
   attachInterrupt(0, reset, FALLING); // attach interrupt
   
-  // put your setup code here, to run once:
-  Serial.begin(9600);
-  Serial.println();
 
   //clean FS, for testing
   // SPIFFS.format();
@@ -364,7 +355,6 @@ void loop() {
     size_t fileSize = f.size();
     f.close();
     while ((readPos = readDataPoint(&d, readPos)) != 0 && !failedWrite) {
-      
       if (d.time == 0 || strcmp(d.name, "") == 0){
         Serial.println("breaking");
         break;
@@ -393,6 +383,8 @@ void loop() {
     if(!failedWrite){
       Serial.printf("fully uploaded %db. Removing /data.dat\n", fileSize);
       SPIFFS.remove("/data.dat");
+    }else{
+      Serial.printf("Dirty upload, keeping %db /data.dat\n", fileSize);
     }
   }
 
@@ -405,7 +397,6 @@ void loop() {
     if (readRTCMem(&tr)) Serial.printf("current rtc-time %d\n", tr);
     writeRTCData(tm, ((uint64_t)(sleepMicros-delta)));
   }
-
 
   #ifdef ESP_DEEPSLEEP
     Serial.printf("DEEPSLEEP for %.2fs\n", (sleepMicros-delta)/1000000.0f);
