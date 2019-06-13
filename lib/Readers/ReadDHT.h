@@ -1,6 +1,6 @@
 #include <DHT.h>              //https://github.com/adafruit/DHT-sensor-library
 #include <Adafruit_Sensor.h>  //https://github.com/adafruit/DHT-sensor-library
-#define MAX_TRIES 5
+#define MAX_TRIES_DHT22 5
 #define DHT22_MAX_TEMP 125
 #define DHT22_MIN_TEMP -40
 #define DHT22_MAX_HUM 100
@@ -14,20 +14,22 @@ bool isValidDHT22(float temperature, float humidity){
 }
 
 DHT dht(ONE_WIRE_PIN, DHT22);
-bool readDHT(unsigned long int t){
+bool readDHT(){
   dht.begin();
   Serial.println("Read From DHT22");
 
   float hum = dht.readHumidity();
   float temp = dht.readTemperature();
   size_t tries = 0;
+  time_t t;
   do {
+    t = time(nullptr);
     hum = dht.readHumidity();
     temp = dht.readTemperature();
     delay(100);
-  } while (tries++ < MAX_TRIES && !isValidDHT22(temp, hum));
-  if (tries >= MAX_TRIES) return false;
-  DataSender<DataPoint> sender(t, 3, "dht22");
+  } while (tries++ < MAX_TRIES_DHT22 && !isValidDHT22(temp, hum));
+  if (tries >= MAX_TRIES_DHT22) return false;
+  DataSender<DataPoint> sender(3);
   DataPoint airTemperature = createDataPoint(FLOAT, "airTemperature", "dht22", temp, t);
   sender.push_back(airTemperature);
   DataPoint airRelativeHumidity = createDataPoint(FLOAT, "airRelativeHumidity", "dht22", hum, t);

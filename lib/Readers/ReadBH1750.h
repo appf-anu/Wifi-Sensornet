@@ -12,15 +12,18 @@
 
 #include <BH1750.h>
 
-void readBH1750(unsigned long int t, byte address){
+void readBH1750(byte address){
+    // sensor setup. BH1750 use hgh res mode rather than fast mode.
     BH1750 lightMeter = BH1750(address);
     lightMeter.begin(BH1750::ONE_TIME_HIGH_RES_MODE_2);
+
+    time_t t = time(nullptr);
     float lux = lightMeter.readLightLevel();
     if (lux < 0) {
         Serial.printf("Got invalud lux reading from light meter: %f", lux);
         return;
     }
-    DataSender<DataPoint> sender(t, 3, "bh1750");
+    DataSender<DataPoint> sender(3);
     DataPoint lux_ = createDataPoint(FLOAT, "lux", "bh1750", lux, t);
     sender.push_back(lux_);
     DataPoint PPFDSunlight = createDataPoint(FLOAT, "PPFDSunlight","bh1750", lux*PPFD_CALIBRATION_SUNLIGHT, t);

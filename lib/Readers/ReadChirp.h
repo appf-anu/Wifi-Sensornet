@@ -20,7 +20,7 @@ bool isValidChirp(unsigned int soilCapacitance, float soilTemperature){
   return true;
 }
 
-bool readChirp(unsigned long int t){
+bool readChirp(){
   // Wire.setClockStretchLimit(2500);
   // chirp soil moisture sensor is address 0x20
   chirpSensor.begin(true); // wait needs 1s for startup
@@ -38,15 +38,16 @@ bool readChirp(unsigned long int t){
 
   unsigned int soilCapacitance;
   float soilTemperature; 
+  time_t t;
   size_t tries = 0;
   do {
+    t = time(nullptr);
     soilCapacitance = chirpSensor.getCapacitance();
     soilTemperature = chirpSensor.getTemperature()/(float)10; 
     delay(100);
-    yield();
   } while (tries++ < MAX_TRIES && !isValidChirp(soilCapacitance, soilTemperature));
   if (tries >= MAX_TRIES) return false;
-  DataSender<DataPoint> sender(t, 3, "chirp");
+  DataSender<DataPoint> sender(3);
 
   DataPoint soilCapacitance_ = createDataPoint(INT, "soilCapacitance", "chirp", soilCapacitance, t); 
   sender.push_back(soilCapacitance_);

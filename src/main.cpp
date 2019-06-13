@@ -1,16 +1,15 @@
 // #define ESP_DEEPSLEEP true
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
+#include <time.h>
+#include <sys/time.h>                   // struct timeval
+// #include <coredecls.h>                  // settimeofday_cb()
+#include <sntp.h>
 #include <TimeManager.h>
 #include <Arduino.h>
 #include <Ticker.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <ConfigManager.h>
-
-#include <time.h>
-#include <sys/time.h>                   // struct timeval
-#include <coredecls.h>                  // settimeofday_cb()
-#include <sntp.h>
 
 #include <ESP8266WiFi.h>      //https://github.com/tzapu/WiFiManager
 #include <DNSServer.h>        //https://github.com/tzapu/WiFiManager
@@ -22,9 +21,8 @@
 #define NO_STARTUP_UPDATE false
 // chirp sensor clock stretching causes issues with esp8266.
 #define USE_CHIRP false
-#define UPDATE_HOURS 2
+#define UPDATE_HOURS 1
 
-timeval cbtime;
 #if defined ARDUINO_ESP8266_NODEMCU
   #define ONE_WIRE_PIN D5
   #define SCL D1
@@ -72,59 +70,62 @@ void flashLed(){
 
 Ticker ticker;
 
-// this needs to have this see https://github.com/esp8266/Arduino/issues/4468
-void ICACHE_RAM_ATTR reset(){
-  flashButtonCounter++;
+// // this needs to have this see https://github.com/esp8266/Arduino/issues/4468
+// void ICACHE_RAM_ATTR reset(){
+//   flashButtonCounter++;
   
-  // need to mash the flash button
-  if (flashButtonCounter < 5) {
-    Serial.printf("press the flash button %d more times to ota next interval...\n", 5-flashButtonCounter);
-    return;
-  }
+//   // need to mash the flash button
+//   if (flashButtonCounter < 5) {
+//     Serial.printf("press the flash button %d more times to ota next interval...\n", 5-flashButtonCounter);
+//     return;
+//   }
 
-  ticker.attach(1.0/(float)flashButtonCounter, flashLed);
-  otaCounter = 0; // reset the ota interval
+//   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
+//   otaCounter = 0; // reset the ota interval
   
-  // need to mash the flash button
-  if (flashButtonCounter < 10) {
-    Serial.printf("press the flash button %d more times to reset datafile...\n", 10-flashButtonCounter);
-    return;
-  }
-  ticker.attach(1.0/(float)flashButtonCounter, flashLed);
-  SPIFFS.remove("/data.dat");
-  if (flashButtonCounter < 15) {
-    Serial.printf("press the flash button %d more times to reset config...\n", 15-flashButtonCounter);
-    return;
-  }
-  Serial.println("resetting configuration....");
-  ticker.attach(1.0/(float)flashButtonCounter, flashLed);
-  // SPIFFS.remove("/config.json");
+//   // need to mash the flash button
+//   if (flashButtonCounter < 10) {
+//     Serial.printf("press the flash button %d more times to reset datafile...\n", 10-flashButtonCounter);
+//     return;
+//   }
+//   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
+//   SPIFFS.remove("/data.dat");
+//   if (flashButtonCounter < 15) {
+//     Serial.printf("press the flash button %d more times to reset config...\n", 15-flashButtonCounter);
+//     return;
+//   }
+//   Serial.println("resetting configuration....");
+//   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
+//   // SPIFFS.remove("/config.json");
   
-  WiFiManager wifiManager;
-  wifiManager.resetSettings();
-  WiFi.disconnect(true);
-  Serial.println("Config reset, rebooting...");
-  ESP.restart();
-}
+//   WiFiManager wifiManager;
+//   wifiManager.resetSettings();
+//   WiFi.disconnect(true);
+//   Serial.println("Config reset, rebooting...");
+//   ESP.restart();
+// }
 
-void ICACHE_RAM_ATTR time_is_set(void){
-  Serial.printf("Time is set %d\n", time(nullptr));
-}
+// void ICACHE_RAM_ATTR time_is_set(void){
+//   Serial.printf("Time is set %d\n", time(nullptr));
+// }
 
 void timecfg(){
-
-  Serial.println("Updating time...");
+  Serial.println("updating time...");
   time_t tm = time(nullptr);
-  Serial.printf("time %d\n", tm);
-  Serial.println("configTime");
+  char timeStr[ISO8601_DATETIME_LEN];
+  iso8601_strftime(timeStr, tm);
+  Serial.printf("pre-update time: %s\n", timeStr);
+  
   configTime(0,0, "0.au.pool.ntp.org", "1.au.pool.ntp.org", "2.au.pool.ntp.org");
   delay(300);
-
+  tm = time(nullptr);
+  iso8601_strftime(timeStr, tm);
+  Serial.printf("updated time: %s\n", timeStr);
 }
 
 void setup() {
   startMicros = 0;
-  settimeofday_cb(time_is_set);
+  // settimeofday_cb(time_is_set);
   
     // set up TZ string to use a POSIX/gnu TZ string for local timezone
   // TZ string information:
@@ -134,17 +135,13 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
   Serial.println();
-  Serial.println("resetting timezone");
   setenv("TZ", "UTC", 1);
   tzset(); // save the TZ variable
 
   timezone tz = { 0, 0};
   timeval tv = { 0, 0};
   time_t tm;
-  if (readRTCMem(&tm)){
-    Serial.printf("rtc-time %d\n", tm);
-    tv = {tm, 0};
-  }
+  if (readRTCMem(&tm)) tv = {tm, 0};
   // DO NOT attempt to use the timezone offsets
   // The timezone offset code is really broken.
   // if used, then localtime() and gmtime() won't work correctly.
@@ -165,8 +162,8 @@ void setup() {
 
   
   pinMode(2, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
-  pinMode(0, INPUT_PULLUP); // aka D3 aka flash button
-  attachInterrupt(0, reset, FALLING); // attach interrupt
+  // pinMode(0, INPUT_PULLUP); // aka D3 aka flash button
+  // attachInterrupt(0, reset, FALLING); // attach interrupt
   
 
   //clean FS, for testing
@@ -249,9 +246,8 @@ void setup() {
   strcpy(cfg.interval, custom_interval.getValue());
   
   //save the custom parameters to FS
-  if (shouldSaveConfig) {
-    saveConfig(&cfg);
-  }
+  if (shouldSaveConfig) saveConfig(&cfg);
+  
 #endif
 
 
@@ -285,7 +281,6 @@ void setup() {
   
 }
 
-
 double lastLoopTime = 0;
 bool firstLoop = true; 
 
@@ -307,10 +302,12 @@ void loop() {
   }
   otaCounter ++;  
   
-  time_t tm = time(nullptr);
+  time_t rawTime = time(nullptr);
+  char timeStr[ISO8601_DATETIME_LEN];
   // before time is jan 1 2000
-  if (tm > 946684800 && tm < 3559717660){ // very high number to prevent some weirdness
-    Serial.printf("Current time: %d\n", tm);
+  if (rawTime > 946684800 && rawTime < 3559717660){ // very high number to prevent some weirdness
+    iso8601_strftime(timeStr, rawTime);
+    Serial.printf("Current time: %s\n", timeStr);
 
     for (byte address = 1; address < 127; address++){
       Wire.beginTransmission(address);
@@ -318,35 +315,36 @@ void loop() {
         Serial.printf("Found I2C device at address 0x%02X\n", address);
         if (address == 0x20){
 #if USE_CHIRP
-          readChirp(tm);
+          readChirp();
 #else
           Serial.println("Not compiled to read from chirp sensor.");
 #endif
         }
 
         if (address == 0x76 || address == 0x77) {
-          if (!readBme280(tm,address)) readBme680(tm);
+          if (!readBme280(address)) readBme680();
         }
 
         if (address == 0x40){
-          readHDC(tm, address);
+          readHDC(address);
         }
 
         if (address == 0x23 || address == 0x5C){
-          readBH1750(tm, address);
+          readBH1750(address);
         }
       }
-      yield();
+      delay(20);
     }
-    readDHT(tm);
+    readDHT();
     delay(20);
-    readDallas(tm);
+    readDallas();
     delay(20);
-    readSys(tm, lastLoopTime, firstLoop);
+    readSys(lastLoopTime, firstLoop);
     delay(20);
   }
   
   if (SPIFFS.exists("/data.dat") && WiFi.status() == WL_CONNECTED){
+    DataSender<DataPoint> sender(3, false);
     DataPoint d;
     memset(&d, 0, sizeof(d));
     size_t readPos = 0;
@@ -373,13 +371,15 @@ void loop() {
           Serial.printf("[%05d/%05d]-> %lu %s %s\n", readPos, fileSize, d.time, d.name, ((bool)d.value)?"true":"false");
         break;
       }
-      size_t tries = 0;
-      do {
-        yield();
-        delay(50);
-      } while(tries++ < 3 && !postDataPointToInfluxDB(&d));
-      if (tries >= 3) failedWrite = true;
+      failedWrite |= !sender.push_back(d);
+      // size_t tries = 0;
+      // do {
+      //   yield();
+      //   delay(50);
+      // } while(tries++ < 3 && !postDataPointToInfluxDB(&d));
+      // if (tries >= 3) failedWrite = true;
     }
+    failedWrite |= !sender.flush();
     if(!failedWrite){
       Serial.printf("fully uploaded %db. Removing /data.dat\n", fileSize);
       SPIFFS.remove("/data.dat");
@@ -390,12 +390,11 @@ void loop() {
 
   unsigned long delta = micros() - startMicros;
   if(delta >= sleepMicros) delta = sleepMicros;
-  tm = time(nullptr);
+  rawTime = time(nullptr);
   // before time is jan 1 2000
-  if (tm > 946684800 && tm < 3559717660){ // very high number to prevent some weirdness
-    time_t tr;
-    if (readRTCMem(&tr)) Serial.printf("current rtc-time %d\n", tr);
-    writeRTCData(tm, ((uint64_t)(sleepMicros-delta)));
+  if (rawTime > 946684800 && rawTime < 3559717660){ // very high number to prevent some weirdness
+    readRTCMem(nullptr);
+    writeRTCData(rawTime, ((uint64_t)(sleepMicros-delta)));
   }
 
   #ifdef ESP_DEEPSLEEP

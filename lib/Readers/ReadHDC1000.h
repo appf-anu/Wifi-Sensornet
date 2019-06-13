@@ -1,6 +1,6 @@
 #include <Adafruit_HDC1000.h>  // https://github.com/jshnaidman/HDC
 
-#define MAX_TRIES 5
+#define MAX_TRIES_HDC 5
 #define HDC_MAX_TEMP 125
 #define HDC_MIN_TEMP -40
 #define HDC_MAX_HUM 100
@@ -14,7 +14,7 @@ bool isValidHDC(float temperature, float humidity){
 }
 
 Adafruit_HDC1000 hdc;
-bool readHDC(unsigned long int t, byte addr){
+bool readHDC(byte addr){
   
   hdc.begin(addr);
   Serial.println("Read From HDC");
@@ -22,18 +22,16 @@ bool readHDC(unsigned long int t, byte addr){
   float hum = hdc.readHumidity();
   float temp = hdc.readTemperature();
   size_t tries = 0;
+  time_t t;
   do {
+    t = time(nullptr);
     hum = hdc.readHumidity();
     temp = hdc.readTemperature();
     delay(100);
-  } while (tries++ < MAX_TRIES && !isValidHDC(temp, hum));
-  if (tries >= MAX_TRIES) return false;
-
-  if (isnan(temp) || isnan(hum)){
-    return false;
-  }
-
-  DataSender<DataPoint> sender(t, 3, "hdc");
+  } while (tries++ < MAX_TRIES_HDC && !isValidHDC(temp, hum));
+  if (tries >= MAX_TRIES_HDC) return false;
+  
+  DataSender<DataPoint> sender(3);
   DataPoint airTemperature = createDataPoint(FLOAT, "airTemperature", "hdc", temp, t);
   sender.push_back(airTemperature);
   DataPoint airRelativeHumidity = createDataPoint(FLOAT, "airRelativeHumidity", "hdc", hum, t);

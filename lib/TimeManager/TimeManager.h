@@ -1,7 +1,14 @@
 
+#define ISO8601_DATETIME_FMT "%FT%H:%M:%S"
+#define ISO8601_DATETIME_LEN 20
 // CRC function used to ensure data validity
 uint32_t calculateCRC32(const uint8_t *data, size_t length);
 
+
+size_t iso8601_strftime(char *buf, time_t rawTime){
+  struct tm *timeinfo = gmtime(&rawTime);
+  return strftime(buf, ISO8601_DATETIME_LEN, ISO8601_DATETIME_FMT, timeinfo);
+}
 
 // Structure which will be stored in RTC memory.
 // First field is CRC32, which is calculated based on the
@@ -24,16 +31,21 @@ bool readRTCMem(time_t *theTime){
             Serial.println("CRC32 in RTC memory doesn't match CRC32 of data. Data is probably invalid!");
             return false;
         }
-        
-        *theTime = (rtcData.timeSleepStarted + ((float)rtcData.timeSleptFor/1000000.0f));
-        Serial.printf("Loaded time %d from RTC mem\n", *theTime);
+        if (theTime){
+          *theTime = (rtcData.timeSleepStarted + ((float)rtcData.timeSleptFor/1000000.0f));
+        }
+        char timeStr[20];
+        iso8601_strftime(timeStr, (rtcData.timeSleepStarted + ((float)rtcData.timeSleptFor/1000000.0f)));
+        Serial.printf("Loaded time %s from RTC mem\n", timeStr);
         return true;
     }
     return false;
 }
 
 bool writeRTCData(time_t timeSleepStarted, uint64_t timeSleptFor){
-    Serial.printf("Setting RTC mem to %d + %fs\n", timeSleepStarted, timeSleptFor/1000000.0f);
+    char timeStr[20];
+    iso8601_strftime(timeStr, timeSleepStarted);
+    Serial.printf("Setting RTC mem to %s + %.3fs\n", timeStr, timeSleptFor/1000000.0f);
     rtcData.timeSleepStarted = timeSleepStarted;
     rtcData.timeSleptFor = timeSleptFor;
     rtcData.crc32started = calculateCRC32((uint8_t*) &rtcData.timeSleepStarted, sizeof(rtcData.timeSleepStarted));

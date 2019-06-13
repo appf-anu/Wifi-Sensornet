@@ -22,9 +22,9 @@ void runPreCmd(const char *newFWVersion){
   sprintf(preCmdUrl, fwCommandUrl, newFWVersion);
   Serial.printf("Running precmd, %s\n", preCmdUrl);
   delay(100);
-  // WiFiClient wifiClient;
+  WiFiClient wifiClient;
   HTTPClient httpClient;
-  httpClient.begin(preCmdUrl);
+  httpClient.begin(wifiClient, preCmdUrl);
   
   int httpCode = httpClient.GET();
   if (httpCode == 404) {

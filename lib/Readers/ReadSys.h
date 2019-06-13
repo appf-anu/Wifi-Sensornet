@@ -14,17 +14,15 @@ extern "C" {
 
 // https://github.com/esp8266/Arduino/blob/master/doc/exception_causes.rst
 
-void readSys(unsigned long int t, unsigned long lastLoopTime, bool firstLoop){
+void readSys(unsigned long lastLoopTime, bool firstLoop){
   Serial.println("Read from sys");
   // DataPoint dps[4];
   // memset(dps, 0, sizeof(dps));
   // size_t n = 0;
-  DataSender<DataPoint> sender(t, 3, "sys");
+  DataSender<DataPoint> sender(3);
+  time_t t = time(nullptr);
   DataPoint vcc = createDataPoint(INT, "espVcc", "sys", ESP.getVcc(), t);
   sender.push_back(vcc);
-
-
-
   DataPoint espFreeHeap = createDataPoint(INT, "espFreeHeap", "sys", ESP.getFreeHeap(), t);
   sender.push_back(espFreeHeap);
   DataPoint espHeapFragmentation = createDataPoint(INT, "espHeapFragmentation", "sys", ESP.getHeapFragmentation(), t);

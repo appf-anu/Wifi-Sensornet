@@ -23,7 +23,7 @@ struct DataPoint
     char name[32];
     char sensorType[8];
     char sensorAddress[16];
-    unsigned long time;
+    time_t time;
     double value;
     TYPE type;
 };
@@ -50,7 +50,7 @@ int writeDataPoint(DataPoint *d){
         Serial.printf("[]<- %lu %s %s\n", d->time, d->name, ((bool)d->value)?"true":"false");
         break;
     } 
-    delay(40);
+    delay(20);
     return 0;
 }
 
@@ -72,9 +72,7 @@ int readDataPoint(DataPoint *d, size_t seekNum){
     return seekNum + sizeof(*d);
 }
 
-
-
-DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], const char sensorAddress[16], double value, unsigned long int t){
+DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], const char sensorAddress[16], double value, time_t t){
   DataPoint d;
   memset(&d, 0, sizeof(d));
   d.time = t;
@@ -85,10 +83,11 @@ DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType
   return d;
 }
 
-DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], double value, unsigned long int t){
+DataPoint createDataPoint(TYPE dtype, const char name[32], const char sensorType[8], double value, time_t t){
   return createDataPoint(dtype, name, sensorType, "", value, t);
 }
 
+WiFiClient wifiClient;
 HTTPClient httpClient;
 
 int postMetric(const char *metric, const char sensorType[8]){
@@ -99,20 +98,20 @@ int postMetric(const char *metric, const char sensorType[8]){
     cfg.influxdb_db, 
     cfg.influxdb_user, 
     cfg.influxdb_password);
-    WiFiClient wifiClient;
     // http request
     httpClient.begin(wifiClient, url);
     int httpCode = httpClient.POST(metric);
-    delay(100); // delay a little bit to avoid being got by the wdt
+    delay(200); // delay a little bit to avoid being got by the wdt
 
-    Serial.printf("POST %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
+    // Serial.printf("POST %s: %db to server got %d\n", sensorType, strlen(metric), httpCode);
     
     if (!(httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK)){
       String payload = httpClient.getString();
-      Serial.printf("POST to %s returned %d: %s\n", url, httpCode, payload.c_str());
+      Serial.printf("\nPOST to %s returned %d: %s\n", url, httpCode, payload.c_str());
       Serial.println(metric);
     }
     httpClient.end();
+    delay(100);
     return (httpCode == HTTP_CODE_NO_CONTENT || httpCode == HTTP_CODE_OK);
 }
 
@@ -125,7 +124,7 @@ int postDataPointToInfluxDB(DataPoint *d){
     cfg.influxdb_user, 
     cfg.influxdb_password);
   char metric[512];
-  // memset(metric, 0, sizeof(metric));
+  memset(metric, 0, sizeof(metric));
   int chipId = ESP.getChipId();
   String sketchmd5 = ESP.getSketchMD5();
   
@@ -162,34 +161,24 @@ int postDataPointToInfluxDB(DataPoint *d){
 template<class Measurement>
 class DataSender {
 public:
-  DataSender(unsigned long t, size_t max_size, const char *sensorType, const char *sensorAddr) {
-    _t = t;
-    _max_size = max_size;
-    _sensorType = sensorType;
-    _sensorAddr = sensorAddr;
+
+  DataSender(size_t max_size){
+    _write_flash = true;
+    _max_size = max_size < 3? 2: max_size;
   }
 
-  DataSender(unsigned long t, size_t max_size, const char *sensorType){
-    _t = t;
-    _max_size = max_size;
-    _sensorType = sensorType;
-    _sensorAddr = "";
-  }
-
-  DataSender(unsigned long t, const char *sensorType){
-    _t = t;
-    _max_size = 2;
-    _sensorType = sensorType;
-    _sensorAddr = "";
+  DataSender(size_t max_size, bool write_flash){
+    _max_size = max_size < 3? 2: max_size;
+    _write_flash = write_flash;
   }
 
   ~DataSender() {
-    Serial.println("Sender deconstructing.");
     this->flush();
+    Serial.printf("\n%s deconstruct\n", _sensorType);
   }
 
   bool postBulk(){
-    char metric[1024];
+    char metric[512];
     memset(metric, 0, sizeof(metric));
     int chipId = ESP.getChipId();
     String sketchmd5 = ESP.getSketchMD5();
@@ -221,7 +210,7 @@ public:
           break;
       }
       if (x != _measurements.size() - 1) strcat(metric, ",");
-      delay(20);
+      Serial.print(".");
     }
     sprintf(metric, "%s %lu", metric, _t); 
     return postMetric(metric, _sensorType);
@@ -229,16 +218,21 @@ public:
 
   bool flush() {
     if (_measurements.size() == 0){
-      Serial.println("Already flushed");
+      Serial.printf("\n%s already flushed\n", _sensorType);
       return true;
     } 
     /// Send my shit
-    Serial.println("Sender flushing");
+    // Serial.printf("%s flushing", _sensorType);
     // we have already failed
     bool success = false;
-    if (WiFi.isConnected()) success = this->postBulk(); // only post if wifi is connected.
-    
-    if (success) {
+    if (WiFi.isConnected()) {
+      size_t tries = 0;
+      do {
+        success = this->postBulk(); // only post if wifi is connected.
+      } while (tries++ < 3 && !success);
+      
+    }
+    if (success || !_write_flash) {
       // clear if success
       _measurements.clear(); /// or whatever the method is that empties the array
     } else {
@@ -246,20 +240,33 @@ public:
       int v = 0;
       for (size_t x =0; x < _measurements.size(); x++){
         v += writeDataPoint(&_measurements[x]);
-        delay(50);
+        delay(100);
       }
       if (v == 0) _measurements.clear(); // clear if no error writing measurements to flash
       return false; // return false
     }
-    return true;
+    return success;
   }
 
   bool push_back(Measurement &meas) {
-    _measurements.push_back(meas);
-    if (_measurements.size() > _max_size) {
-      this->flush();
+    bool success = true;
+    bool dirty = false;
+    if (meas.time != _t ||
+        meas.sensorType != _sensorType || 
+        meas.sensorAddress != _sensorAddr){
+          dirty = true;
+          Serial.print(",");
+      }
+    
+    if (_measurements.size() > _max_size || dirty) {
+      success = this->flush();
     }
-    return true;
+
+    _t = meas.time;
+    strcpy(_sensorType, meas.sensorType);
+    strcpy(_sensorAddr, meas.sensorAddress);
+    _measurements.push_back(meas);
+    return success;
   }
 
   void push_environment_data(double temp, double hum){
@@ -303,8 +310,9 @@ public:
 protected:
   size_t _max_size;
   unsigned long _t;
-  const char *_sensorType;
-  const char *_sensorAddr;
+  bool _write_flash;
+  char _sensorType[8];
+  char _sensorAddr[16];
   std::vector<Measurement> _measurements;
 };
 

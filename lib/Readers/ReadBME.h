@@ -27,7 +27,7 @@ bool isValidBME(float temperature, float humidity, float pressure){
 }
 
 
-bool readBme280(unsigned long int t, byte address){
+bool readBme280(byte address){
   size_t tries = 0;
   do {
     delay(250);
@@ -52,8 +52,9 @@ bool readBme280(unsigned long int t, byte address){
   // whatever is going on here it gives weird values.
   Serial.println("Read From bme280");
   tries = 0;
-  
+  time_t t;
   do {
+    t = time(nullptr);
     bme.takeForcedMeasurement();
     temp = bme.readTemperature();
     pres = bme.readPressure()/100.0F;
@@ -63,7 +64,7 @@ bool readBme280(unsigned long int t, byte address){
 
   if (tries >= MAX_TRIES) return false;
   
-  DataSender<DataPoint> sender(t, 3, "bme280");
+  DataSender<DataPoint> sender(3);
 
   DataPoint airPressure = createDataPoint(FLOAT, "airPressure", "bme280", pres, t);
   sender.push_back(airPressure);
@@ -75,7 +76,7 @@ bool readBme280(unsigned long int t, byte address){
   return true; 
 }
 
-bool readBme680(unsigned long int t){
+bool readBme680(){
 
   Adafruit_BME680 bme; // I2C
   size_t tries = 0;
@@ -100,7 +101,9 @@ bool readBme680(unsigned long int t){
   float temp;
   float hum;
   unsigned int gas;
+  time_t t;
   do {
+    t = time(nullptr);
     temp = bme.readTemperature();
     pres = bme.readPressure()/100.0F;
     hum = bme.readHumidity();
@@ -110,7 +113,7 @@ bool readBme680(unsigned long int t){
 
   if (tries >= MAX_TRIES) return false;
 
-  DataSender<DataPoint> sender(t, 3, "bme680");
+  DataSender<DataPoint> sender(3);
 
   DataPoint airPressure = createDataPoint(FLOAT, "airPressure", "bme680", pres, t);
   sender.push_back(airPressure);
