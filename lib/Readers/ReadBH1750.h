@@ -20,7 +20,7 @@ void readBH1750(byte address){
     time_t t = time(nullptr);
     float lux = lightMeter.readLightLevel();
     if (lux < 0) {
-        Serial.printf("Got invalud lux reading from light meter: %f", lux);
+        Serial.printf("bad lux read: %f", lux);
         return;
     }
     DataSender<DataPoint> sender(3);

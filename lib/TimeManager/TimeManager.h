@@ -28,7 +28,7 @@ bool readRTCMem(time_t *theTime){
         uint32_t crc32sleptfor = calculateCRC32((uint8_t*) &rtcData.timeSleptFor, sizeof(rtcData.timeSleptFor));
         
         if (crc32started != rtcData.crc32started || crc32sleptfor != rtcData.crc32sleptfor) {
-            Serial.println("CRC32 in RTC memory doesn't match CRC32 of data. Data is probably invalid!");
+            Serial.println("CRC in RTCmem invalid!");
             return false;
         }
         if (theTime){
@@ -36,7 +36,7 @@ bool readRTCMem(time_t *theTime){
         }
         char timeStr[20];
         iso8601_strftime(timeStr, (rtcData.timeSleepStarted + ((float)rtcData.timeSleptFor/1000000.0f)));
-        Serial.printf("Loaded time %s from RTC mem\n", timeStr);
+        Serial.printf("load time %s from RTCmem\n", timeStr);
         return true;
     }
     return false;
@@ -45,7 +45,7 @@ bool readRTCMem(time_t *theTime){
 bool writeRTCData(time_t timeSleepStarted, uint64_t timeSleptFor){
     char timeStr[20];
     iso8601_strftime(timeStr, timeSleepStarted);
-    Serial.printf("Setting RTC mem to %s + %.3fs\n", timeStr, timeSleptFor/1000000.0f);
+    Serial.printf("set RTCmem to %s + %.3fs\n", timeStr, timeSleptFor/1000000.0f);
     rtcData.timeSleepStarted = timeSleepStarted;
     rtcData.timeSleptFor = timeSleptFor;
     rtcData.crc32started = calculateCRC32((uint8_t*) &rtcData.timeSleepStarted, sizeof(rtcData.timeSleepStarted));

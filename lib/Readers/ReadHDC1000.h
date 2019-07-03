@@ -17,7 +17,7 @@ Adafruit_HDC1000 hdc;
 bool readHDC(byte addr){
   
   hdc.begin(addr);
-  Serial.println("Read From HDC");
+  Serial.println("read HDC");
   
   float hum = hdc.readHumidity();
   float temp = hdc.readTemperature();

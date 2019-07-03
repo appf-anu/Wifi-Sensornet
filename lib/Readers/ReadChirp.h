@@ -25,7 +25,7 @@ bool readChirp(){
   // chirp soil moisture sensor is address 0x20
   chirpSensor.begin(true); // wait needs 1s for startup
   uint8_t version = chirpSensor.getVersion();
-  Serial.printf("Read from chirp v%02X\n", version);
+  Serial.printf("read chirp v%02X\n", version);
   if (version >= 23){
     chirpSensor.getCapacitance();
     chirpSensor.getTemperature();

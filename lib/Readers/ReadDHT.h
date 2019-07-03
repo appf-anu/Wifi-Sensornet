@@ -16,7 +16,7 @@ bool isValidDHT22(float temperature, float humidity){
 DHT dht(ONE_WIRE_PIN, DHT22);
 bool readDHT(){
   dht.begin();
-  Serial.println("Read From DHT22");
+  Serial.println("read DHT22");
 
   float hum = dht.readHumidity();
   float temp = dht.readTemperature();

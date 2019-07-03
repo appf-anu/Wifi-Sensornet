@@ -9,6 +9,8 @@
 const char *fwVersionUrl = "http://xn--2xa.ink/files/nodemcuv2.bin.md5";
 #elif defined ARDUINO_ESP8266_ESP12
 const char *fwVersionUrl = "http://xn--2xa.ink/files/esp12e.bin.md5";
+#elif defined ARDUINO_ESP8266_ESP01
+const char *fwVersionUrl = "http://xn--2xa.ink/files/esp01.bin.md5";
 #else
 const char *fwVersionUrl = "http://xn--2xa.ink/files/firmware.bin.md5";
 #endif
@@ -20,7 +22,7 @@ const char *fwCommandUrl = "http://xn--2xa.ink/files/firmware/%s.precmd";
 void runPreCmd(const char *newFWVersion){
   char preCmdUrl[128];
   sprintf(preCmdUrl, fwCommandUrl, newFWVersion);
-  Serial.printf("Running precmd, %s\n", preCmdUrl);
+  Serial.printf("precmd, %s\n", preCmdUrl);
   delay(100);
   WiFiClient wifiClient;
   HTTPClient httpClient;
@@ -28,12 +30,12 @@ void runPreCmd(const char *newFWVersion){
   
   int httpCode = httpClient.GET();
   if (httpCode == 404) {
-    Serial.println("no precmds");
+    Serial.println("no precmd");
     httpClient.end();
     return;
   }
   if( httpCode != 200 ) {
-    Serial.printf("server error %d\n", httpCode);
+    Serial.printf("update error %d\n", httpCode);
     httpClient.end();
     return;   
   }
@@ -43,7 +45,7 @@ void runPreCmd(const char *newFWVersion){
   delay(1000);
   const char* preCommands = preCommandsStr.c_str(); 
   if (strstr(preCommands, "removedatafile") != NULL){
-    Serial.println("precmd: remove data file");
+    Serial.println("precmd: rm data file");
     size_t tries = 0;
     bool SPIFFS_began = false;
     while (!SPIFFS_began && tries < 3){
@@ -54,21 +56,20 @@ void runPreCmd(const char *newFWVersion){
       bool removed = SPIFFS.remove("/data.dat");
       Serial.println( removed ? "Successfully removed /data.dat" : "failed removing /data.dat");
     } 
-    else Serial.println("SPIFFS couldnt be mounted");
+    else Serial.println("SPIFFS cant be mounted");
   }
   if (strstr(preCommands, "resetwifi") != NULL){
-    Serial.println("precmd: resetting wifi");
+    Serial.println("resetting wifi");
     // todo, fix this. will disconnect and then wontbadly.
     ESP.eraseConfig();
     // WiFi.disconnect(true);
   }
-  Serial.println("Finished precmd");
   
 }
 
 void checkForUpdates() {
   if(WiFi.status() != WL_CONNECTED) {
-    Serial.println("Not connected to wifi, not checking for update.");
+    Serial.println("No wifi no update");
     return;
   }
   String fwVersionUrlStr = String(fwVersionUrl);
@@ -91,17 +92,15 @@ void checkForUpdates() {
   String curFwvers = ESP.getSketchMD5();
   const char *curFWVersion = curFwvers.c_str();
   
-  Serial.printf( "Current firmware md5:   \t%s\n", curFWVersion);
-  Serial.printf( "Available firmware md5: \t%s\n", newFWVersion);
-  
-
+  Serial.printf( "Current md5:   \t%s\n", curFWVersion);
+  Serial.printf( "Available md5: \t%s\n", newFWVersion);
 
   if( strstr(newFWVersion, curFWVersion) == NULL) {
     runPreCmd(newFWVersion);
     delay(1000);
     char fwUrl[256];
     sprintf(fwUrl, fwUrlSpr, newFWVersion);
-    Serial.printf( "Preparing to update from %s\n", fwUrl);
+    Serial.printf( "Updating from %s\n", fwUrl);
     Serial.flush();
     Serial.end();
     delay(1000);
@@ -115,12 +114,12 @@ void checkForUpdates() {
         break;
       case HTTP_UPDATE_FAILED:
         Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+
+        Serial.printf("FreeSketchSpace: %d", ESP.getFreeSketchSpace());
         break;
       case HTTP_UPDATE_NO_UPDATES:
         Serial.println("HTTP_UPDATE_NO_UPDATES");
         break;
     }
-  } else {
-    Serial.println( "Already on latest version" );
-  }  
+  } 
 }

@@ -22,14 +22,14 @@ DeviceAddress addr;
 void readDallas(){
   
   sensors.begin();
-  Serial.println("Read From dallas");
+  Serial.println("read dallas");
   sensors.requestTemperatures();
   size_t numSensors = sensors.getDeviceCount();
   char addrHex[16];
   for (size_t x = 0; x < numSensors; x++){
     
     if (!sensors.getAddress(addr, x)) {
-      Serial.printf("Unable to get device address for device %d/%d\n", x, numSensors);
+      Serial.printf("cant get address for dev %d/%d\n", x, numSensors);
       continue;
     }
     // set resolution to 11 bits
@@ -42,7 +42,7 @@ void readDallas(){
     do {
       t = time(nullptr);
       temp = sensors.getTempC(addr);
-      Serial.printf("Attempted to get temperature from Dallas %d/%d, got %.6f\n", x+1, numSensors, temp);
+      Serial.printf("tried %d/%d, got %.6f\n", x+1, numSensors, temp);
       delay(50);
     } while (tries++ < MAX_TRIES_DALLAS && !isValidDallas(temp));
     

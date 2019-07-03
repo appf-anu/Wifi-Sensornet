@@ -20,7 +20,7 @@
 // DEFINES
 #define NO_STARTUP_UPDATE false
 // chirp sensor clock stretching causes issues with esp8266.
-#define USE_CHIRP false
+#define USE_CHIRP true
 #define UPDATE_HOURS 1
 
 #if defined ARDUINO_ESP8266_NODEMCU
@@ -47,12 +47,14 @@ unsigned int flashButtonCounter = 0;
 // this include MUST BE AFTER TIMECLIENT AND CFG!!!
 #include <DataManager.h>
 // these includes must be after DataManager
+#if USE_CHIRP
 #include <ReadChirp.h>
+#endif
 #include <ReadBME.h>
-#include <ReadDHT.h>
-#include <ReadBH1750.h>
 #include <ReadSys.h>
 #include <ReadDallas.h>
+#include <ReadDHT.h>
+#include <ReadBH1750.h>
 #include <ReadHDC1000.h>
 
 //callback notifying us of the need to save config
@@ -70,44 +72,79 @@ void flashLed(){
 
 Ticker ticker;
 
-// // this needs to have this see https://github.com/esp8266/Arduino/issues/4468
-// void ICACHE_RAM_ATTR reset(){
-//   flashButtonCounter++;
-  
-//   // need to mash the flash button
-//   if (flashButtonCounter < 5) {
-//     Serial.printf("press the flash button %d more times to ota next interval...\n", 5-flashButtonCounter);
-//     return;
-//   }
+void setupWifiManager(bool allowRestart){
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
-//   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
-//   otaCounter = 0; // reset the ota interval
-  
-//   // need to mash the flash button
-//   if (flashButtonCounter < 10) {
-//     Serial.printf("press the flash button %d more times to reset datafile...\n", 10-flashButtonCounter);
-//     return;
-//   }
-//   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
-//   SPIFFS.remove("/data.dat");
-//   if (flashButtonCounter < 15) {
-//     Serial.printf("press the flash button %d more times to reset config...\n", 15-flashButtonCounter);
-//     return;
-//   }
-//   Serial.println("resetting configuration....");
-//   ticker.attach(1.0/(float)flashButtonCounter, flashLed);
-//   // SPIFFS.remove("/config.json");
-  
-//   WiFiManager wifiManager;
-//   wifiManager.resetSettings();
-//   WiFi.disconnect(true);
-//   Serial.println("Config reset, rebooting...");
-//   ESP.restart();
-// }
+  // The extra parameters to be configured (can be either global or just in the setup)
+  // After connecting, parameter.getValue() will get you the configured value
+  // id/name placeholder/prompt default length
+  WiFiManagerParameter custom_influxdb_server("server", "influxdb server", cfg.influxdb_server, 64);
+  WiFiManagerParameter custom_influxdb_port("port", "influxdb port", cfg.influxdb_port, 6);
+  WiFiManagerParameter custom_influxdb_db("database", "influxdb db", cfg.influxdb_db, 16);
+  WiFiManagerParameter custom_influxdb_user("user", "username", cfg.influxdb_user, 16);
+  WiFiManagerParameter custom_influxdb_password("password", "password", cfg.influxdb_password, 32);
+  WiFiManagerParameter custom_interval("interval", "interval", cfg.interval, 4);
+  WiFiManagerParameter custom_location("location", "location", cfg.location, 16);
 
-// void ICACHE_RAM_ATTR time_is_set(void){
-//   Serial.printf("Time is set %d\n", time(nullptr));
-// }
+  //WiFiManager
+  //Local intialization. Once its business is done, there is no need to keep it around
+  WiFiManager wifiManager;
+  Serial.print("15: ");
+  Serial.println(digitalRead(15));
+
+  if (digitalRead(2) == HIGH && allowRestart){
+    wifiManager.resetSettings();
+    WiFi.disconnect(true);
+    Serial.println("15 pulled low, Config reset, rebooting...");
+    ESP.restart();
+  }
+  //set config save notify callback
+  wifiManager.setSaveConfigCallback(saveConfigCallback);
+
+  //add all your parameters here
+  wifiManager.addParameter(&custom_influxdb_server);
+  wifiManager.addParameter(&custom_influxdb_port);
+  wifiManager.addParameter(&custom_influxdb_db);
+  wifiManager.addParameter(&custom_influxdb_user);
+  wifiManager.addParameter(&custom_influxdb_password);
+  wifiManager.addParameter(&custom_location);
+  wifiManager.addParameter(&custom_interval);
+  
+  //fetches ssid and pass and tries to connect
+  //if it does not connect it starts an access point with the specified name
+  //and goes into a blocking loop awaiting configuration
+  char wifiName[17];
+  
+  sprintf(wifiName, "Sensornet %06x\n", ESP.getChipId());
+  Serial.printf("Wifi up on  %s", wifiName);
+  //sets timeout until configuration portal gets turned off and esp gets reset.
+  wifiManager.setTimeout(300);
+  if (!wifiManager.autoConnect(wifiName)) {
+    Serial.println("failed to connect and hit timeout");
+    delay(3000);
+    // restart and try again, or maybe put it to deep sleep
+    ESP.restart();
+    delay(5000);
+  }
+
+  Serial.println();
+  //if you get here you have connected to the WiFi
+
+  Serial.println("connected...yeey :)");
+
+
+  //read updated parameters
+  strcpy(cfg.influxdb_server, custom_influxdb_server.getValue());
+  strcpy(cfg.influxdb_port, custom_influxdb_port.getValue());
+  strcpy(cfg.influxdb_db, custom_influxdb_db.getValue());
+  strcpy(cfg.influxdb_user, custom_influxdb_user.getValue());
+  strcpy(cfg.influxdb_password, custom_influxdb_password.getValue());
+  strcpy(cfg.location, custom_location.getValue());
+  strcpy(cfg.interval, custom_interval.getValue());
+  
+  //save the custom parameters to FS
+  if (shouldSaveConfig) saveConfig(&cfg);
+}
 
 void timecfg(){
   Serial.println("updating time...");
@@ -160,11 +197,13 @@ void setup() {
   }
   pinMode(A0, INPUT);
 
-  
+  pinMode(2, INPUT_PULLUP); // D4
+  // pull d4 high on boot to reset wifi
+
   pinMode(2, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
   // pinMode(0, INPUT_PULLUP); // aka D3 aka flash button
   // attachInterrupt(0, reset, FALLING); // attach interrupt
-  
+  \
 
   //clean FS, for testing
   // SPIFFS.format();
@@ -175,79 +214,24 @@ void setup() {
   // client.setDefaultNoDelay(true);
   // client.setNoDelay(true);
 
+  
 #ifdef ESP_DEEPSLEEP
-  WiFi.reconnect();
-  size_t tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries++ < 100) { // wait 10s for wifi.
-    delay(100);
-    Serial.print(".");
+
+  if (digitalRead(2) == HIGH){
+    setupWifiManager(false);
+  }else{
+
+    WiFi.reconnect();
+    size_t tries = 0;
+    while (WiFi.status() != WL_CONNECTED && tries++ < 150) { // wait 15s for wifi.
+      delay(150);
+      // Serial.print(".");
+    }
+    
   }
+
 #else
-
-  WiFi.setSleepMode(WIFI_NONE_SLEEP);
-
-  // The extra parameters to be configured (can be either global or just in the setup)
-  // After connecting, parameter.getValue() will get you the configured value
-  // id/name placeholder/prompt default length
-  WiFiManagerParameter custom_influxdb_server("server", "influxdb server", cfg.influxdb_server, 64);
-  WiFiManagerParameter custom_influxdb_port("port", "influxdb port", cfg.influxdb_port, 6);
-  WiFiManagerParameter custom_influxdb_db("database", "influxdb db", cfg.influxdb_db, 16);
-  WiFiManagerParameter custom_influxdb_user("user", "username", cfg.influxdb_user, 16);
-  WiFiManagerParameter custom_influxdb_password("password", "password", cfg.influxdb_password, 32);
-  WiFiManagerParameter custom_interval("interval", "interval", cfg.interval, 4);
-  WiFiManagerParameter custom_location("location", "location", cfg.location, 16);
-
-  //WiFiManager
-  //Local intialization. Once its business is done, there is no need to keep it around
-  WiFiManager wifiManager;
-
-  //set config save notify callback
-  wifiManager.setSaveConfigCallback(saveConfigCallback);
-
-  //add all your parameters here
-  wifiManager.addParameter(&custom_influxdb_server);
-  wifiManager.addParameter(&custom_influxdb_port);
-  wifiManager.addParameter(&custom_influxdb_db);
-  wifiManager.addParameter(&custom_influxdb_user);
-  wifiManager.addParameter(&custom_influxdb_password);
-  wifiManager.addParameter(&custom_location);
-  wifiManager.addParameter(&custom_interval);
-  
-  //fetches ssid and pass and tries to connect
-  //if it does not connect it starts an access point with the specified name
-  //and goes into a blocking loop awaiting configuration
-  char wifiName[17];
-  
-  sprintf(wifiName, "Sensornet %06x\n", ESP.getChipId());
-  Serial.printf("Wifi up on  %s", wifiName);
-  //sets timeout until configuration portal gets turned off and esp gets reset.
-  wifiManager.setTimeout(300);
-  if (!wifiManager.autoConnect(wifiName)) {
-    Serial.println("failed to connect and hit timeout");
-    delay(3000);
-    // restart and try again, or maybe put it to deep sleep
-    ESP.restart();
-    delay(5000);
-  }
-
-  Serial.println();
-  //if you get here you have connected to the WiFi
-
-  Serial.println("connected...yeey :)");
-
-
-  //read updated parameters
-  strcpy(cfg.influxdb_server, custom_influxdb_server.getValue());
-  strcpy(cfg.influxdb_port, custom_influxdb_port.getValue());
-  strcpy(cfg.influxdb_db, custom_influxdb_db.getValue());
-  strcpy(cfg.influxdb_user, custom_influxdb_user.getValue());
-  strcpy(cfg.influxdb_password, custom_influxdb_password.getValue());
-  strcpy(cfg.location, custom_location.getValue());
-  strcpy(cfg.interval, custom_interval.getValue());
-  
-  //save the custom parameters to FS
-  if (shouldSaveConfig) saveConfig(&cfg);
-  
+  setupWifiManager(true);
 #endif
 
 
@@ -259,7 +243,7 @@ void setup() {
 
   // timeClient.begin();
   if (WiFi.status() == WL_CONNECTED){
-    Serial.print("Station connected normal...");
+    Serial.print("Station connected");
     timecfg();
   }
 #if USE_CHIRP
@@ -278,7 +262,6 @@ void setup() {
   Serial.println("NOT UPDATING ON BOOT!");
   Serial.printf("Sketch md5: %s\n", ESP.getSketchMD5().c_str());
 #endif
-  
 }
 
 double lastLoopTime = 0;
@@ -298,7 +281,7 @@ void loop() {
   if (otaCounter % (unsigned int)((UPDATE_HOURS*60)/sleepMinutes) == 0){
     checkForUpdates();
   }else{
-    Serial.printf("Not time for update %d/%d\n", otaCounter, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
+    Serial.printf("Not time to update %d/%d\n", otaCounter, (unsigned int)((UPDATE_HOURS*60)/sleepMinutes));
   }
   otaCounter ++;  
   
@@ -312,19 +295,17 @@ void loop() {
     for (byte address = 1; address < 127; address++){
       Wire.beginTransmission(address);
       if (Wire.endTransmission() == 0){
-        Serial.printf("Found I2C device at address 0x%02X\n", address);
+        Serial.printf("Found I2C dev at 0x%02X\n", address);
         if (address == 0x20){
 #if USE_CHIRP
           readChirp();
 #else
-          Serial.println("Not compiled to read from chirp sensor.");
+          Serial.println("Chirp not avail");
 #endif
         }
-
         if (address == 0x76 || address == 0x77) {
           if (!readBme280(address)) readBme680();
         }
-
         if (address == 0x40){
           readHDC(address);
         }
@@ -354,7 +335,6 @@ void loop() {
     f.close();
     while ((readPos = readDataPoint(&d, readPos)) != 0 && !failedWrite) {
       if (d.time == 0 || strcmp(d.name, "") == 0){
-        Serial.println("breaking");
         break;
       }
       switch (d.type){
@@ -381,10 +361,10 @@ void loop() {
     }
     failedWrite |= !sender.flush();
     if(!failedWrite){
-      Serial.printf("fully uploaded %db. Removing /data.dat\n", fileSize);
+      Serial.printf("uploaded %db rm /data.dat\n", fileSize);
       SPIFFS.remove("/data.dat");
     }else{
-      Serial.printf("Dirty upload, keeping %db /data.dat\n", fileSize);
+      Serial.printf("dirty keep %db /data.dat\n", fileSize);
     }
   }
 
@@ -398,13 +378,13 @@ void loop() {
   }
 
   #ifdef ESP_DEEPSLEEP
-    Serial.printf("DEEPSLEEP for %.2fs\n", (sleepMicros-delta)/1000000.0f);
+    Serial.printf("sleep %.2fs\n", (sleepMicros-delta)/1000000.0f);
     ESP.deepSleep(sleepMicros-delta);
   #else
     firstLoop = false;
     unsigned long sleepTotal = (sleepMicros-delta)/1000;
     lastLoopTime = delta;
-    Serial.printf("Delay for %.3fs\n", sleepTotal/(float)1000);
+    Serial.printf("delay %.3fs\n", sleepTotal/(float)1000);
     ticker.detach();
     ticker.attach(1.0, flashLed);
     delay(sleepTotal);

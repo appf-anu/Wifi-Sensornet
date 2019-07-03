@@ -34,7 +34,7 @@ bool readBme280(byte address){
   } while (tries++ < MAX_TRIES && !bme.begin(address));
 
   if (tries >= MAX_TRIES) {
-    Serial.println("Tried too many times to communicate with bme280");
+    Serial.println("bme280 too many tries");
     return false;
   }
 
@@ -50,7 +50,7 @@ bool readBme280(byte address){
                   Adafruit_BME280::FILTER_OFF   );
 
   // whatever is going on here it gives weird values.
-  Serial.println("Read From bme280");
+  Serial.println("read bme280");
   tries = 0;
   time_t t;
   do {
@@ -85,7 +85,7 @@ bool readBme680(){
   } while (tries++ < MAX_TRIES && !bme.begin());
 
   if (tries >= MAX_TRIES) {
-    Serial.println("Tried too many times to communicate with bme680");
+    Serial.println("bme680 too many tries");
     return false;
   }
 
@@ -95,7 +95,7 @@ bool readBme680(){
   bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
   bme.setGasHeater(320, 150); // 320*C for 150 ms
 
-  Serial.println("Read From bme680");
+  Serial.println("read bme680");
   tries = 0;
   float pres;
   float temp;

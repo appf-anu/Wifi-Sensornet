@@ -7,9 +7,15 @@
 const char *platform = "nodemcuv2";
 #elif defined ARDUINO_ESP8266_ESP12
 const char *platform = "esp12e";
+#elif defined ARDUINO_ESP8266_ESP01
+const char *platform = "esp01";
 #else
 const char *platform = "unknown";
 #endif
+
+
+const char *urlfmt = "http://%s:%s/write?db=%s&precision=s&u=%s&p=%s";
+const char *metricfmt = "%s,platform=%s,chipid=%06X,sketchmd5=%s,location=%s";
 
 typedef enum {
     INT,
@@ -56,13 +62,12 @@ int writeDataPoint(DataPoint *d){
 
 int readDataPoint(DataPoint *d, size_t seekNum){
     if (!SPIFFS.exists("/data.dat")) {
-        Serial.println("Data file does not exist");
         return 0;
     }
     //file exists, reading and loading
     File f = SPIFFS.open("/data.dat", "r");
     if (!f) {
-        Serial.println("Failed to open data file");
+        Serial.println("fail open data");
         return 0;
     }
     if (seekNum >= f.size()) return 0;
@@ -93,7 +98,7 @@ HTTPClient httpClient;
 int postMetric(const char *metric, const char sensorType[8]){
   char url[256];
   memset(url, 0, sizeof(url));
-  sprintf(url, "http://%s:%s/write?db=%s&precision=s&u=%s&p=%s", 
+  sprintf(url, urlfmt, 
     cfg.influxdb_server, cfg.influxdb_port,
     cfg.influxdb_db, 
     cfg.influxdb_user, 
@@ -118,7 +123,7 @@ int postMetric(const char *metric, const char sensorType[8]){
 
 int postDataPointToInfluxDB(DataPoint *d){
   char url[256];
-  sprintf(url, "http://%s:%s/write?db=%s&precision=s&u=%s&p=%s", 
+  sprintf(url, urlfmt, 
     cfg.influxdb_server, cfg.influxdb_port,
     cfg.influxdb_db, 
     cfg.influxdb_user, 
@@ -129,7 +134,7 @@ int postDataPointToInfluxDB(DataPoint *d){
   String sketchmd5 = ESP.getSketchMD5();
   
   strcpy(metric, "sensornode");
-  sprintf(metric, "%s,platform=%s,chipid=%06X,sketchmd5=%s,location=%s",
+  sprintf(metric, metricfmt,
           metric, platform,
           chipId, sketchmd5.c_str(), cfg.location);
   
@@ -184,7 +189,7 @@ public:
     String sketchmd5 = ESP.getSketchMD5();
     
     strcpy(metric, "sensornode");
-    sprintf(metric, "%s,platform=%s,chipid=%06X,sketchmd5=%s,location=%s",
+    sprintf(metric, metricfmt,
             metric, platform,
             chipId, sketchmd5.c_str(), cfg.location);
     if (strcmp(_sensorType, "") != 0){
