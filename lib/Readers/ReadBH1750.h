@@ -13,7 +13,16 @@
 #include <BH1750.h>
 
 void readBH1750(byte address){
-    // sensor setup. BH1750 use hgh res mode rather than fast mode.
+    /**
+     * reads values from a BH1750 sensor and adds the data to the sender.
+     * calculates multiple values to compensate for different lighting conditions.
+     * set CALIBRATE_SPECIFIC_LAMPS to true to report 
+     * 
+     * @param byte address the i2c address of the sensor.
+     * @return bool whether the sensor was successfully read and datapoints added to sender.
+     */
+
+    // sensor setup. BH1750 use high res mode rather than fast mode.
     BH1750 lightMeter = BH1750(address);
     lightMeter.begin(BH1750::ONE_TIME_HIGH_RES_MODE_2);
 
@@ -23,6 +32,7 @@ void readBH1750(byte address){
         Serial.printf("bad lux read: %f", lux);
         return;
     }
+
     DataSender<DataPoint> sender(3);
     DataPoint lux_ = createDataPoint(FLOAT, "lux", "bh1750", lux, t);
     sender.push_back(lux_);

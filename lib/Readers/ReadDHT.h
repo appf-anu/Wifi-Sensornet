@@ -7,6 +7,10 @@
 #define DHT22_MIN_HUM 0
 
 bool isValidDHT22(float temperature, float humidity){
+  /**
+   * Checks to see if values recieved from a DHT22 are valid / within the bounds set by 
+   * the defines DHT22_MAX_TEMP DHT22_MIN_TEMP DHT22_MAX_HUM DHT22_MIN_HUM 
+   */
   if (isnan(temperature) || isnan(humidity)) return false;
   if (temperature < DHT22_MIN_TEMP || temperature > DHT22_MAX_TEMP) return false;
   if (humidity < DHT22_MIN_HUM || humidity > DHT22_MAX_HUM) return false;
@@ -15,6 +19,12 @@ bool isValidDHT22(float temperature, float humidity){
 
 DHT dht(ONE_WIRE_PIN, DHT22);
 bool readDHT(){
+  /**
+   * reads values from a DHT22 sensor and adds the data to the sender.
+   * should have the ONE_WIRE_PIN define var set.
+   * 
+   * @return bool whether the sensor was successfully read and datapoints added to sender
+   */
   dht.begin();
   Serial.println("read DHT22");
 

@@ -11,6 +11,10 @@ I2CSoilMoistureSensor chirpSensor;
 
 
 bool isValidChirp(unsigned int soilCapacitance, float soilTemperature){
+  /**
+   * Checks to see if values recieved from a Chirp sensor are valid / within the bounds set by 
+   * the defines CHIRP_MAX_TEMP CHIRP_MIN_TEMP CHIRP_MAX_CAP CHIRP_MIN_CAP 
+   */
   if (soilCapacitance > CHIRP_MAX_CAP || soilCapacitance < CHIRP_MIN_CAP){
     return false;
   }
@@ -21,6 +25,14 @@ bool isValidChirp(unsigned int soilCapacitance, float soilTemperature){
 }
 
 bool readChirp(){
+  /**
+   * reads values from a chirp sensor and adds the data to the sender.
+   * requires that the ESP has clock stretching enabled through 
+   * `Wire.setClockStretchLimit(2500);` ... Maybe.
+   * 
+   * @return bool whether the sensor was successfully read and datapoints added to sender
+   */
+
   // Wire.setClockStretchLimit(2500);
   // chirp soil moisture sensor is address 0x20
   chirpSensor.begin(true); // wait needs 1s for startup

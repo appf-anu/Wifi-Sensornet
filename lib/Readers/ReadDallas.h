@@ -20,6 +20,10 @@ bool isValidDallas(float temperature){
 DallasTemperature sensors(&oneWire);
 DeviceAddress addr;
 void readDallas(){
+  /**
+   * reads values from a Dallas ds18b20 sensor and adds the data to the sender.
+   * 
+   */
   
   sensors.begin();
   Serial.println("read dallas");

@@ -20,6 +20,15 @@ const char *fwCommandUrl = "http://xn--2xa.ink/files/firmware/%s.precmd";
 
 
 void runPreCmd(const char *newFWVersion){
+  /**
+   * Run commands before updating
+   * if a file exists in the firmware repo name <fwhash>.precmd, run the commands in this file
+   * 
+   * commands: 
+   *  removedatafile -> removes the data file
+   *  resetwifi -> resets the wifi connectivity (making the device require reconfiguration)
+   * @param newFWVersion string for the firmware version.
+   */
   char preCmdUrl[128];
   sprintf(preCmdUrl, fwCommandUrl, newFWVersion);
   Serial.printf("precmd, %s\n", preCmdUrl);
@@ -68,6 +77,16 @@ void runPreCmd(const char *newFWVersion){
 }
 
 void checkForUpdates() {
+  /**
+   * Check for updates to the current firmware
+   * 
+   * uses a different url for updates based on the chip type defines:
+   * ARDUINO_ESP8266_ESP01, ARDUINO_ESP8266_NODEMCU, ARDUINO_ESP8266_ESP12
+   * 
+   * checks for an md5 hash in a file on the server and then begins the update process for that hash
+   * the hash file should contain only the hash. 
+   * the update file should live at <domain>/files/firmware/<hash>.bin
+   */
   if(WiFi.status() != WL_CONNECTED) {
     Serial.println("No wifi no update");
     return;

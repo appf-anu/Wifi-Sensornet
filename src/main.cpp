@@ -203,8 +203,6 @@ void setup() {
   pinMode(2, OUTPUT); // "esp led" DONT use LED_BUILTIN because it is used for deepsleep
   // pinMode(0, INPUT_PULLUP); // aka D3 aka flash button
   // attachInterrupt(0, reset, FALLING); // attach interrupt
-  \
-
   //clean FS, for testing
   // SPIFFS.format();
   //read configuration from FS

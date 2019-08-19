@@ -15,6 +15,9 @@ extern "C" {
 // https://github.com/esp8266/Arduino/blob/master/doc/exception_causes.rst
 
 void readSys(unsigned long lastLoopTime, bool firstLoop){
+  /**
+   * Reads system statistics and reset info and adds them to a sender for transmission.
+   */
   Serial.println("Read from sys");
   // DataPoint dps[4];
   // memset(dps, 0, sizeof(dps));

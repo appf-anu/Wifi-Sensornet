@@ -7,6 +7,10 @@
 #define HDC_MIN_HUM 0
 
 bool isValidHDC(float temperature, float humidity){
+  /**
+   * Checks to see if values recieved from a HDC1000 are valid / within the bounds set by 
+   * the defines HDC_MAX_TEMP HDC_MIN_TEMP HDC_MAX_HUM HDC_MIN_HUM 
+   */
   if (isnan(temperature) || isnan(humidity)) return false;
   if (temperature < HDC_MIN_TEMP || temperature > HDC_MAX_TEMP) return false;
   if (humidity < HDC_MIN_HUM || humidity > HDC_MAX_HUM) return false;
@@ -15,6 +19,12 @@ bool isValidHDC(float temperature, float humidity){
 
 Adafruit_HDC1000 hdc;
 bool readHDC(byte addr){
+  /**
+   * reads values from a HDC1000 sensor and adds the data to the sender.
+   * 
+   * @param byte addr the i2c address of the sensor.
+   * @return bool whether the sensor was successfully read and datapoints added to sender.
+   */
   
   hdc.begin(addr);
   Serial.println("read HDC");

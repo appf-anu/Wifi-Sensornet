@@ -28,6 +28,13 @@ bool isValidBME(float temperature, float humidity, float pressure){
 
 
 bool readBme280(byte address){
+  /**
+   * reads values from a bme280 sensor and adds the data to the sender.
+   * 
+   * @param byte addr the i2c address of the sensor.
+   * @return bool whether the sensor was successfully read and datapoints added to sender.
+   */
+
   size_t tries = 0;
   do {
     delay(250);
@@ -77,6 +84,11 @@ bool readBme280(byte address){
 }
 
 bool readBme680(){
+  /**
+   * reads values from a bme680 sensor and adds the data to the sender.
+   * 
+   * @return bool whether the sensor was successfully read and datapoints added to sender.
+   */
 
   Adafruit_BME680 bme; // I2C
   size_t tries = 0;
